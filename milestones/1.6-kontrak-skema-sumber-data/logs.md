@@ -51,3 +51,11 @@ Ditambah 1 baris instruksi wajib-baca-CHANGELOG di `raw-schema-contract.md` Bagi
 Ditambah **KT-4 — Kolom identitas pelanggan (`customer_key`) belum ada di skema `telco_customers_synthetic`**: konteks (konsekuensi langsung penutupan KT-2), kenapa belum dikerjakan (migrasi skema + implementasi generator di luar cakupan seluruh sistem ini, butuh koordinasi eksplisit), pemicu peninjauan (sebelum generator diaktifkan, trigger sama dengan Fase 2 KT-1).
 
 **File disentuh:** `docs/keputusan-tertunda.md` (edit: tutup KT-1/KT-2, tambah KT-4).
+
+## Checkpoint 5 (final) — Dokumentasi + Penutupan Milestone
+
+Ditulis `report.md`: memetakan KK1 (Checkpoint 1, 0 drift ditemukan) dan KK2 (Checkpoint 3, CHANGELOG+aturan breaking-change) ke bukti. Ringkas 5 keputusan final, keterbatasan eksplisit (gap `customer_key` belum diselesaikan, trigger generator belum bertanggal, disiplin PR belum diuji nyata), dan follow-up (KT-4, kewajiban M2.x/M3.x baca kontrak).
+
+**Penutupan Milestone 1.6:** kontrak skema sumber data selesai — `docs/04-schema-contract/{raw-schema-contract,CHANGELOG}.md` jadi rujukan resmi. KT-1 dan KT-2 tertutup, KT-4 baru tercatat. Ini milestone TERAKHIR di jalur Orang #1 (`mlops-01-productionization.md`) — seluruh M1.1-1.6 selesai. Push ke GitHub belum dilakukan, menunggu instruksi eksplisit user sesuai `CLAUDE.md`.
+
+**File disentuh:** `milestones/1.6-kontrak-skema-sumber-data/report.md` (baru).
