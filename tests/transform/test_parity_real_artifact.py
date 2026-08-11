@@ -14,18 +14,26 @@ Strategi (Keputusan #4, milestones/1.2-modularisasi-preprocessing/decisions.md):
 4. Bandingkan nilai per fitur (dipetakan eksplisit, dua sisi punya nama kolom
    beda casing tapi harus menghasilkan angka identik).
 
+Langkah 1-2 (load+graft) DIPINDAH ke ``churn_prediction.transform.artifact_loader``
+Milestone 1.5 Checkpoint 1 (dipakai juga jalur produksi ``inference.registry``,
+lihat milestones/1.5-inference-service/decisions.md Keputusan #6) -- test ini
+sekarang memanggilnya, bukan duplikasi logika sendiri.
+
 Skip otomatis kalau ``SUPABASE_DB_URL`` tidak ada di ``.env``/environment atau
 ``artifacs/proprocessor/preprocessor.joblib`` tidak ditemukan.
 """
 
 import os
-import sys
-import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
+
+from churn_prediction.transform.artifact_loader import (
+    load_fitted_pipeline,
+    load_original_preprocessor,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_PATH = REPO_ROOT / "artifacs" / "proprocessor" / "preprocessor.joblib"
@@ -115,41 +123,6 @@ OUTPUT_COLUMN_MAP = {
 }
 
 
-def _load_real_preprocessor():
-    """Task 11: load preprocessor.joblib asli, tangani class-resolution.
-
-    PENTING: shim mengarah ke class REFERENSI PascalCase (``_notebook_reference``),
-    BUKAN class produksi kita (``churn_prediction.transform.*``). ``joblib.load()``
-    hanya memulihkan atribut instance, bukan kode method -- kalau di-shim ke class
-    produksi (snake_case), ``.transform()`` akan mengevaluasi kondisi kolom
-    snake_case terhadap DataFrame PascalCase asli dan diam-diam gagal membuat
-    beberapa fitur (mis. monthly_to_total_ratio, is_auto_payment) karena
-    'total_charges' tidak pernah cocok dengan 'TotalCharges'. Ditemukan saat
-    eksekusi milestone ini -- lihat logs.md.
-    """
-    import joblib
-
-    import _notebook_reference as ref
-
-    main_mod = sys.modules["__main__"]
-    for cls in [
-        ref.PreprocessingPipeline,
-        ref.FeatureEngineer,
-        ref.ColumnDropper,
-        ref.StructuralEncoder,
-        ref.BinaryEncoder,
-        ref.OHEWrapper,
-        ref.ScalerWrapper,
-    ]:
-        setattr(main_mod, cls.__name__, cls)
-
-    with warnings.catch_warnings():
-        # InconsistentVersionWarning: artifact di-fit dengan scikit-learn 1.6.1
-        # (terlihat dari pesan warning-nya sendiri) -- temuan baru untuk KT-3.
-        warnings.simplefilter("ignore")
-        return joblib.load(ARTIFACT_PATH)
-
-
 def _fetch_real_rows(limit=1500):
     import psycopg2
 
@@ -167,56 +140,9 @@ def _fetch_real_rows(limit=1500):
     return df
 
 
-def _graft_our_pipeline(real_obj):
-    """Task 12: suntikkan parameter fitted dari objek asli ke instance kita.
-
-    Deep-copy dulu supaya tidak memutasi objek ``real_obj`` yang juga dipakai
-    sebagai ground truth. ``feature_names_in_`` dihapus dari salinan encoder/
-    scaler kita -- sklearn modern memvalidasi nama kolom persis terhadap yang
-    dilihat saat fit (PascalCase), padahal Keputusan #4 eksplisit: grafting
-    ini seharusnya posisi-based, bukan nama-based.
-    """
-    import copy
-
-    from churn_prediction.transform import constants
-    from churn_prediction.transform.pipeline import PreprocessingPipeline
-
-    mine = PreprocessingPipeline()
-
-    mine.structural_encoder_.cols_present_ = list(constants.STRUCTURAL_COLS)
-    mine.binary_encoder_.cols_present_ = list(constants.BINARY_COLS)
-    mine.col_dropper_.cols_dropped_ = list(constants.DROP_COLS)
-
-    mine.ohe_wrapper_.cols_present_ = list(constants.OHE_COLS) + ["tenure_group"]
-    mine.ohe_wrapper_._encoder = copy.deepcopy(real_obj.ohe_wrapper_._encoder)
-    if hasattr(mine.ohe_wrapper_._encoder, "feature_names_in_"):
-        del mine.ohe_wrapper_._encoder.feature_names_in_
-    # Tidak pakai encoder.get_feature_names_out(cols) -- encoder mengingat
-    # feature_names_in_ dari fit asli (PascalCase) dan akan menolak nama snake_case
-    # kita sebagai argumen (ValueError: input_features is not equal to
-    # feature_names_in_). Bangun nama manual dari categories_/drop_idx_ (posisi-based,
-    # sama-sama tidak bergantung nama kolom).
-    names = []
-    for col, cats, didx in zip(
-        mine.ohe_wrapper_.cols_present_,
-        mine.ohe_wrapper_._encoder.categories_,
-        mine.ohe_wrapper_._encoder.drop_idx_,
-    ):
-        surviving = [c for i, c in enumerate(cats) if i != didx]
-        names.extend(f"{col}_{c}" for c in surviving)
-    mine.ohe_wrapper_.ohe_feature_names_ = names
-
-    mine.scaler_wrapper_.cols_present_ = list(constants.NUMERIC_TARGET_COLS)
-    mine.scaler_wrapper_._scaler = copy.deepcopy(real_obj.scaler_wrapper_._scaler)
-    if hasattr(mine.scaler_wrapper_._scaler, "feature_names_in_"):
-        del mine.scaler_wrapper_._scaler.feature_names_in_
-
-    return mine
-
-
 def test_kk2_parity_against_real_artifact_on_supabase_data():
-    real_obj = _load_real_preprocessor()
-    mine = _graft_our_pipeline(real_obj)
+    real_obj = load_original_preprocessor(ARTIFACT_PATH)
+    mine = load_fitted_pipeline(ARTIFACT_PATH)
 
     df_pascal = _fetch_real_rows(limit=1500)
     assert set([0, 1, 2]).issubset(set(df_pascal["id"].tolist())), (

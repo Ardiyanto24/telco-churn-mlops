@@ -15,3 +15,16 @@
 **Verifikasi:** `pytest tests/ -q` → **123 passed** (termasuk `test_kk2_parity_against_real_artifact_on_supabase_data` yang benar-benar JALAN, bukan skip — `SUPABASE_DB_URL` tersedia di environment ini via `.env`). Membuktikan penambahan `mlflow-skinny` tidak mengganggu dependency M1.2-1.4 yang sudah terkunci.
 
 **File disentuh:** `pyproject.toml` (tambah `mlflow-skinny==3.15.1`), `.gitignore` (tambah `mlruns/`, `mlruns.db`), `.env.example` (tambah `MLFLOW_TRACKING_URI`), `src/churn_prediction/inference/{__init__,constants}.py` (skeleton), `milestones/1.5-inference-service/decisions.md`.
+
+## Checkpoint 1 — Sentralisasi artifact loading (Keputusan #6)
+
+`git mv tests/transform/_notebook_reference.py src/churn_prediction/transform/_notebook_reference.py`. Dibuat `src/churn_prediction/transform/artifact_loader.py` dengan dua fungsi publik: `load_original_preprocessor(path)` (load mentah, ground truth) dan `load_fitted_pipeline(path)` (load+graft, siap `transform()` langsung) -- gabungan `_load_real_preprocessor`+`_graft_our_pipeline` yang sebelumnya duplikat di `test_parity_real_artifact.py`.
+
+`test_parity_real_artifact.py` di-refactor: hapus kedua fungsi lokal, panggil `artifact_loader.load_original_preprocessor`/`load_fitted_pipeline`. Docstring modul `_notebook_reference.py` diupdate (bukan lagi "TEST-ONLY" -- sekarang dipakai juga jalur produksi).
+
+**Verifikasi:**
+- `pytest tests/transform/test_parity_real_artifact.py -v` → **1 passed** (KK2 M1.2 tetap hijau persis seperti sebelum refactor -- SUPABASE_DB_URL tersedia, test benar-benar jalan bukan skip).
+- `pytest tests/ -q` → **123 passed** (tidak ada import error dari pemindahan file).
+- Smoke test manual `load_fitted_pipeline()` dipanggil berdiri sendiri (tanpa lewat test) pada 1 baris fixture (id=0, `notebook-audit.md` H.2) → `(1, 29)` shape, `tc_residual` ada -- bukti fungsi produksi bekerja independen dari harness test.
+
+**File disentuh:** `src/churn_prediction/transform/_notebook_reference.py` (dipindah dari `tests/transform/`), `src/churn_prediction/transform/artifact_loader.py` (baru), `tests/transform/test_parity_real_artifact.py` (refactor, -47 baris duplikasi).

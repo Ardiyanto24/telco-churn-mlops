@@ -1,5 +1,6 @@
-"""Transkripsi literal (PascalCase, TEST-ONLY) dari kelas asli
-``tccp-preprocessing-v2.ipynb`` cell 7-13 -- BUKAN bagian modul produksi.
+"""Transkripsi literal (PascalCase) dari kelas asli
+``tccp-preprocessing-v2.ipynb`` cell 7-13 -- modul PRIVAT (prefix ``_``),
+bukan API publik ``churn_prediction.transform``.
 
 Kenapa file ini ada: ``joblib.load()`` pada ``preprocessor.joblib`` hanya
 memulihkan ATRIBUT (``__dict__``) instance, bukan KODE method -- begitu
@@ -12,9 +13,15 @@ X.columns`` akan False terus (kolom aslinya "TotalCharges") -- fitur seperti
 ``monthly_to_total_ratio``/``is_auto_payment`` diam-diam tidak pernah dibuat.
 
 File ini menyediakan class dengan literal PascalCase asli supaya artifact
-bisa di-unpickle dan di-``transform()`` dengan benar sebagai ground truth
-KK2 (dibandingkan terhadap docs/03-notebook-audit/notebook-audit.md Bagian B-C
-yang ditranskrip dari cell yang sama).
+bisa di-unpickle dan di-``transform()`` dengan benar. Dipakai oleh dua sisi:
+- ``artifact_loader.py`` (PRODUKSI, Milestone 1.5) -- memuat+graft
+  ``preprocessor.joblib`` untuk dipakai ``inference.registry``.
+- ``tests/transform/test_parity_real_artifact.py`` (Milestone 1.2, KK2) --
+  ground truth untuk dibandingkan terhadap modul produksi snake_case.
+
+Dipindah dari ``tests/transform/`` ke sini (Milestone 1.5 Checkpoint 1,
+lihat milestones/1.5-inference-service/decisions.md Keputusan #6) supaya
+tidak ada duplikasi logika antara jalur test dan jalur produksi.
 """
 
 import numpy as np
