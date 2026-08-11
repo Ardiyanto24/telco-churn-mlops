@@ -142,3 +142,5 @@ Seluruh kolom timestamp (`imported_at`, `generated_at`, `created_at`, `completed
 ## 5. Jalur Komunikasi Perubahan Skema
 
 Lihat `docs/04-schema-contract/CHANGELOG.md` — **WAJIB dibaca sebelum memulai pekerjaan apa pun yang bergantung pada kontrak ini** (Milestone 2.x/3.x, dan kunjungan ulang ke Milestone 1.1-1.3 kalau skema berubah).
+
+**Aturan singkat (detail lengkap di `CHANGELOG.md`):** perubahan skema (dokumen ini ATAU tabel Supabase sungguhan) wajib lewat git PR yang menyentuh `CHANGELOG.md`, diklasifikasikan BREAKING/NON-BREAKING eksplisit, dengan entry baru ditambah di paling atas. Entry BREAKING sejak terakhir kali Anda membaca dokumen ini berarti kode yang bergantung padanya wajib ditinjau ulang sebelum dilanjutkan.

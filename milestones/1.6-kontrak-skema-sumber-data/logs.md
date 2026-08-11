@@ -33,3 +33,13 @@ Ditulis `docs/04-schema-contract/raw-schema-contract.md` (5 bagian): (1) kontrak
 **Verifikasi:** setiap kolom di ketiga tabel (21+2 metadata untuk source, 20+3 metadata untuk synthetic, 7 untuk generation_runs) punya baris di dokumen dengan tipe+constraint — dicek lengkap terhadap hasil Checkpoint 1, tidak ada yang terlewat.
 
 **File disentuh:** `docs/04-schema-contract/raw-schema-contract.md` (baru), `docs/04-schema-contract/.gitkeep` (dihapus).
+
+## Checkpoint 3 — CHANGELOG + aturan breaking-change (KK2)
+
+Ditulis `docs/04-schema-contract/CHANGELOG.md`: proses perubahan (git PR + klasifikasi wajib + entry baru di atas), tabel aturan breaking vs non-breaking (7 skenario konkret: kolom dihapus/rename/tipe berubah/constraint diperketat = breaking; kolom baru nullable/constraint dilonggarkan/dokumentasi murni = non-breaking), dan entry pertama "v1 — Kontrak awal (2026-08-12)" merujuk isi Checkpoint 2 lengkap dengan milestone terdampak (dicek: M1.1-1.3, M1.5 SEMUA sudah konsisten kontrak ini, tidak perlu perubahan kode).
+
+Ditambah 1 baris instruksi wajib-baca-CHANGELOG di `raw-schema-contract.md` Bagian 5 (bukan file baru).
+
+**Verifikasi:** format entry + aturan breaking-change dibaca ulang seolah pembaca baru (Orang #2/#3 hipotetis) — jelas tanpa perlu konteks tambahan dari luar dokumen ini sendiri.
+
+**File disentuh:** `docs/04-schema-contract/CHANGELOG.md` (baru), `docs/04-schema-contract/raw-schema-contract.md` (tambah 1 baris di Bagian 5).
