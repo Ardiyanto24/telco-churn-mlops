@@ -67,3 +67,21 @@ Dibuat `inference/predictor.py` -- `predict(df, model_version, tracking_uri=None
 `pytest tests/ -q` → **135 passed**.
 
 **File disentuh:** `src/churn_prediction/inference/predictor.py` (baru), `tests/inference/test_predictor.py` (baru).
+
+## Checkpoint 5 — Verifikasi KK1 (venv terpisah) + KK2 (parity end-to-end)
+
+### KK2 (dikerjakan lebih dulu): parity end-to-end vs ground truth notebook asli
+
+Dibuat `tests/inference/test_e2e_parity.py`, perluasan langsung M1.2 Checkpoint 5: ground truth = `preprocessor.joblib`+`model_final.joblib` asli dimuat LANGSUNG (`load_original_preprocessor` + `joblib.load`, TANPA bundle/MLflow sama sekali) → `predict_proba()[:,1]` → threshold 0.6238 manual. Dibandingkan terhadap `predictor.predict()` (lewat bundle+MLflow) pada 1000 baris real `telco_customers_source` (Supabase), termasuk wajib baris id=0,1,2.
+
+**Verifikasi:** `pytest tests/inference/test_e2e_parity.py -v` → **1 passed** — `churn_probability` `np.allclose` (rtol 1e-6) DAN `churn_label` identik 100% dari 1000 baris. Bukti utama KK2: jalur penuh (validasi->transform->predict_proba->threshold->lineage) lewat package publik menghasilkan angka identik dengan ground truth notebook asli.
+
+### KK1: instalasi & pemanggilan dari venv terpisah
+
+**Temuan signifikan kedua (Keputusan #10):** percobaan pertama gagal -- venv baru (dibuat bersih via `python -m venv`, `pip install <path-repo>` TANPA `-e`, dari `pyproject.toml`) berhasil install, tapi `predict()` gagal `mlflow.tracking.registry.UnsupportedModelRegistryStoreURIException` untuk skema `sqlite:///`. Diagnosis: `mlflow-skinny` (Keputusan #8) TIDAK mendeklarasikan `sqlalchemy`/`alembic` sebagai dependency-nya sendiri, padahal keduanya wajib ada supaya mlflow bisa resolve backend `sqlite://`. Venv pengembangan tidak pernah menunjukkan masalah ini karena masih menyimpan `sqlalchemy`/`alembic` sebagai SISA instalasi `mlflow` penuh sebelum diganti `mlflow-skinny` di Checkpoint 0 -- `pip uninstall mlflow` tidak ikut membersihkan dependency transitifnya. Ini justru pembuktian langsung kenapa KK1 (venv benar-benar terpisah) adalah gerbang wajib, bukan opsional.
+
+**Perbaikan + verifikasi ulang dari nol:** tambah `sqlalchemy==2.0.52`+`alembic==1.19.1` ke `pyproject.toml`. Dibuat venv KEDUA yang benar-benar bersih (tanpa instalasi manual apa pun di luar `pip install <repo>`), diregistrasi 1 bundle dari venv pengembangan ke tracking store SQLite terpisah (path absolut), lalu dari venv bersih tsb: `import churn_prediction.inference.predictor; predict(df_2_baris, model_version="1")` — BERHASIL, mengembalikan `churn_probability`/`churn_label`/`model_version`/`predicted_at` untuk kedua baris, tanpa satu baris kode `src/` pun diubah untuk venv kedua ini. Venv verifikasi (keduanya) dan file `mlruns_test.db` sementara dihapus setelah selesai (bukan bagian repo, tidak permanen).
+
+`pytest tests/ -q` (venv pengembangan, setelah `pyproject.toml` diperbaiki) → **136 passed**.
+
+**File disentuh:** `pyproject.toml` (tambah `sqlalchemy`+`alembic`), `tests/inference/test_e2e_parity.py` (baru), `milestones/1.5-inference-service/decisions.md` (Keputusan #10). Tidak ada file permanen dari verifikasi venv terpisah (sesuai plan).

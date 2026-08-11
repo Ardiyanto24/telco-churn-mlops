@@ -42,6 +42,17 @@ dependencies = [
     # Lihat milestones/1.5-inference-service/decisions.md Keputusan #9.
     "lightgbm==4.7.0",
     "xgboost==3.4.0",
+    # sqlalchemy/alembic: mlflow-skinny TIDAK mendeklarasikan ini sebagai
+    # dependency, tapi backend registry sqlite:/// (Keputusan #7) butuh
+    # keduanya -- tanpanya mlflow.pyfunc.load_model("models:/...") gagal
+    # UnsupportedModelRegistryStoreURIException. Baru terungkap saat KK1
+    # (instalasi dari venv terpisah, Checkpoint 5) -- venv dev sudah
+    # "kebetulan" punya keduanya sebagai sisa instalasi "mlflow" penuh
+    # sebelum diganti ke mlflow-skinny (Keputusan #8), jadi gap ini tidak
+    # kelihatan sampai diuji dari venv benar-benar bersih.
+    # Lihat milestones/1.5-inference-service/decisions.md Keputusan #10.
+    "sqlalchemy==2.0.52",
+    "alembic==1.19.1",
 ]
 
 [project.optional-dependencies]
