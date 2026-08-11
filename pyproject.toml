@@ -7,23 +7,25 @@ name = "churn_prediction"
 version = "0.1.0"
 description = "Modul transformasi (preprocessing + feature engineering) untuk model churn prediction telekomunikasi."
 requires-python = ">=3.11"
-# Versi dependency SENGAJA belum dikunci -- lihat milestones/1.2-modularisasi-preprocessing/decisions.md
-# Keputusan #2: pipeline dibangun & diuji dulu, versi eksak dikunci di Checkpoint 6
-# berdasarkan pip freeze dari environment yang terbukti jalan. Tidak ada bukti versi
-# training asli DS di 7 notebook (lihat docs/keputusan-tertunda.md KT-3).
-# scikit-learn>=1.2 adalah pengecualian -- itu bukti konkret dari kode notebook
-# (OneHotEncoder(sparse_output=...) baru ada di sklearn>=1.2), bukan tebakan.
+# Dikunci Checkpoint 6 (2026-08-11) -- lihat milestones/1.2-modularisasi-preprocessing/decisions.md
+# Keputusan #2. scikit-learn==1.6.1 DIKONFIRMASI, bukan tebakan -- terungkap dari
+# InconsistentVersionWarning saat memuat artifacs/proprocessor/preprocessor.joblib
+# asli DS (lihat docs/keputusan-tertunda.md KT-3). Seluruh 32 test suite dijalankan
+# ulang dan lulus persis dengan versi ini. pandas/numpy/joblib TETAP PROVISIONAL --
+# dikunci ke versi yang terbukti jalan di environment ini (pip freeze), bukan
+# versi training asli DS yang tidak tercatat di manapun (KT-3 belum tertutup
+# untuk ketiganya).
 dependencies = [
-    "pandas",
-    "numpy",
-    "scikit-learn>=1.2",
-    "joblib",
+    "pandas==3.0.5",
+    "numpy==2.5.2",
+    "scikit-learn==1.6.1",
+    "joblib==1.5.3",
 ]
 
 [project.optional-dependencies]
 # psycopg2-binary hanya untuk test integrasi Checkpoint 5 (baca data real Supabase
 # demi verifikasi KK2) -- bukan dependency runtime modul transform itu sendiri.
-dev = ["pytest>=8.0", "psycopg2-binary>=2.9"]
+dev = ["pytest==9.1.1", "psycopg2-binary==2.9.12"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
