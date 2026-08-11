@@ -21,3 +21,11 @@
 - **Task 1:** `pyproject.toml` ditulis — `churn_prediction`, backend `setuptools`, dependency terbuka (`scikit-learn>=1.2` batas bawah saja, `pandas`/`numpy`/`joblib` tanpa batas), `dev=["pytest>=8.0"]`.
 - **Task 2:** `src/churn_prediction/{__init__.py, transform/{__init__.py, constants.py}}` dibuat. Konstanta di-port dari `tccp-preprocessing-v2.ipynb` cell 5 dengan nama kolom snake_case (Keputusan #1), urutan tiap list dijaga persis sama posisi dengan versi asli (kritis untuk grafting Checkpoint 5). `DROP_COLS` tidak menyertakan `id` (tidak ada di skema `telco_customers_synthetic`).
 - Venv baru `.venv/` dibuat khusus repo ini (ditambahkan ke `.gitignore` bersama `__pycache__/`, `*.egg-info/`, `build/`). `pip install -e ".[dev]"` berhasil tanpa error. Verifikasi import dari venv: `from churn_prediction.transform import constants` — `constants.OHE_COLS` dan `constants.DROP_COLS` tercetak sesuai ekspektasi. Bukti KK3 parsial (modul bisa diinstal & diimpor dari luar konteks dev).
+- Commit: `8c80c59` "feat(milestone-1.2): checkpoint 1 - scaffold package churn_prediction".
+
+## Checkpoint 2 — Transformer: structural + feature engineering + drop
+
+- **Task 3 (`StructuralEncoder`):** port 1:1 cell 7. 3 unit test (map 4 nilai, kolom tidak diminta diabaikan, seluruh `STRUCTURAL_COLS` dari constants) — 3/3 lulus.
+- **Task 4 (`FeatureEngineer`):** port 1:1 cell 8, 6 fitur turunan. 14 unit test termasuk kasus tepi (`total_charges=0` fallback ratio `1.0`; 9 titik batas bin `tenure_group`; seluruh addon `'No internet service'` → `service_count=0`) PLUS baris nyata `id=0` (`notebook-audit.md` H.2) — `tc_residual` dan `monthly_to_total_ratio` dicek `pytest.approx` terhadap perhitungan manual formula, cocok persis. `is_auto_payment` dikonfirmasi `0` untuk `'Mailed check'` dan `1` untuk kedua metode otomatis — 14/14 lulus.
+- **Task 5 (`ColumnDropper`):** port 1:1 cell 9. 3 unit test (drop normal, kolom hilang tidak error, default dari constants) — 3/3 lulus.
+- Total suite `tests/transform/`: 20/20 lulus (`pytest tests/transform/ -v`).
