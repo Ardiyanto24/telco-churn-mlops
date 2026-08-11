@@ -11,3 +11,8 @@
 
 - **Task 0a:** `decisions.md` ditulis lengkap (4 keputusan + ringkasan klarifikasi) SEBELUM kode apa pun, mengikuti pola tervalidasi Milestone 1.2.
 - **Task 0b:** `pandera`/`pydantic` ditambahkan ke `dependencies` inti `pyproject.toml`. `pip install -e ".[dev]"` berhasil — versi terpasang `pandera==0.32.1`, `pydantic==2.13.4`, langsung dipin persis (Keputusan #3, bukan provisional). `src/churn_prediction/schema/__init__.py` dibuat (scaffold kosong). Verifikasi: `import pandera, pydantic, churn_prediction.schema` berhasil.
+- Commit: `a5a861d` "feat(milestone-1.3): checkpoint 0 - keputusan teknis + scaffold dependency".
+
+## Checkpoint 1 — Constraint tunggal per kolom
+
+- **Task 1:** `schema/constants.py` ditulis — `CATEGORICAL_COLUMNS` (16 kolom teks/int diskret) dan `NUMERIC_RANGES` (3 kolom numerik: tenure, monthly_charges, total_charges), total `FEATURE_COLUMNS` = 19. `BINARY_COLS`/`ADDON_COLS` di-reuse langsung dari `churn_prediction.transform.constants` (bukan ditulis ulang, sesuai Keputusan #2). 13 unit test membandingkan tiap daftar kategori/rentang satu-satu terhadap `notebook-audit.md` Bagian A (nilai unik EDA) dan Bagian H.3 (CHECK constraint) — 13/13 lulus.
