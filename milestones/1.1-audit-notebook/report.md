@@ -2,7 +2,7 @@
 
 ## Ringkasan
 
-Milestone 1.1 selesai. Ketujuh notebook yang diserahkan Data Scientist (`notebook/tccp-eda.ipynb`, `tccp-preprocessing-v2.ipynb`, `tccp-modeling-baseline-v2.ipynb`, `tccp-hyperparameter-tuning.ipynb`, `tccp-evaluation.ipynb`, `tccp-xai-gate-1.ipynb`, `tccp-xai-gate-2.ipynb`) sudah diaudit tanpa mengubah kode apa pun. Deliverable utama: [`notebook-audit.md`](./notebook-audit.md) — dokumen tunggal berisi skema data mentah, urutan operasi preprocessing, inventaris 29 fitur final (diklasifikasikan seketika/historis), kontrak model (tipe output, threshold, artifact), cross-check notebook sekunder, dependency library, dan 9 item ambiguitas untuk Data Scientist.
+Milestone 1.1 selesai. Ketujuh notebook yang diserahkan Data Scientist (`notebook/tccp-eda.ipynb`, `tccp-preprocessing-v2.ipynb`, `tccp-modeling-baseline-v2.ipynb`, `tccp-hyperparameter-tuning.ipynb`, `tccp-evaluation.ipynb`, `tccp-xai-gate-1.ipynb`, `tccp-xai-gate-2.ipynb`) sudah diaudit tanpa mengubah kode apa pun. Deliverable utama: [`docs/03-notebook-audit/notebook-audit.md`](../../docs/03-notebook-audit/notebook-audit.md) — dokumen tunggal berisi skema data mentah, urutan operasi preprocessing, inventaris 29 fitur final (diklasifikasikan seketika/historis), kontrak model (tipe output, threshold, artifact), cross-check notebook sekunder, dependency library, dan 9 item ambiguitas untuk Data Scientist.
 
 ## Kontrak Sumber vs Bukti (KK1-KK3)
 
@@ -21,17 +21,18 @@ Lihat [`decisions.md`](./decisions.md) — 4 keputusan: (1) sumber primer vs sek
 - Struktur deliverable bertambah dari 5 bagian (rencana awal) menjadi 7 bagian — ditambahkan Bagian D (Kontrak Model) dan pemisahan Bagian E (Cross-Check) dari Bagian F (Dependency) karena volumenya cukup besar untuk berdiri sendiri.
 - Task 8-10 (notebook sekunder) tidak seluruhnya dibaca cell-per-cell penuh seperti Task 7 — sebagian besar diverifikasi lewat `grep` bertarget terhadap dump teks notebook (nama fitur, threshold, artifact) karena konten intinya (model/metrik/nama fitur) sudah cukup untuk dikonfirmasi tanpa membaca ulang seluruh boilerplate kode Optuna/WandB yang berulang pola dengan notebook lain. Tidak mengurangi kelengkapan bukti KK1-KK3.
 - Plan awal menetapkan commit per checkpoint (6 commit). Karena seluruh 14 task dikerjakan menerus dalam satu sesi tanpa jeda alami antar-checkpoint (tidak ada file yang ditulis lalu didiamkan sebelum checkpoint berikutnya), keempat file deliverable ditulis sekaligus di akhir dan di-commit sebagai **satu commit tunggal** untuk menghindari histori git yang dipecah artifisial (commit kosong/berurutan tanpa jeda kerja nyata di antaranya). Dicatat di sini secara eksplisit sebagai penyimpangan dari pola commit-per-checkpoint yang dipakai milestone lain.
+- **Koreksi pasca-penutupan:** draf pertama milestone ini menaruh `notebook-audit.md` di dalam `milestones/1.1-audit-notebook/`. User mengoreksi: folder `milestones/` khusus 3 file standar (`decisions.md`/`logs.md`/`report.md`); deliverable teknis dipindah ke `docs/03-notebook-audit/notebook-audit.md`. Lihat `decisions.md` #2 (revisi) dan `logs.md` bagian "Koreksi Pasca-Penutupan" untuk detail lengkap.
 
 ## Keterbatasan dan Item Terbuka
 
-Sembilan ambiguitas didaftarkan di `notebook-audit.md` Bagian G, dua di antaranya **material dan wajib dijawab sebelum melanjutkan** ke milestone berikutnya:
+Sembilan ambiguitas didaftarkan di `docs/03-notebook-audit/notebook-audit.md` Bagian G, dua di antaranya **material**:
 
-- **G.1** — identitas sumber data (dataset kompetisi Kaggle vs skema PostgreSQL production sesungguhnya) belum dikonfirmasi ke pemilik sumber data. Relevan untuk Milestone 1.6.
-- **G.3** — seluruh fitur terklasifikasi INSTANT berdasarkan notebook training (snapshot, bukan log kejadian). Belum dikonfirmasi apakah asumsi ini tetap berlaku di PostgreSQL production. **Ini gap dengan dampak arsitektural terbesar** — menentukan apakah Milestone 2.2 (desain feature store, Orang #2) punya pekerjaan substansial.
+- **G.1 — terjawab sebagian pasca-penutupan.** User mengonfirmasi: data memang dari Kaggle, tapi sudah diunduh dan ditaruh di Supabase (PostgreSQL) — itulah sumber data production sesungguhnya (lihat `decisions.md` #5). User juga sudah membangun data generator near-real-time bertopologi sama, sengaja belum diaktifkan. **Belum terverifikasi:** kecocokan skema tabel Supabase terhadap skema training (Bagian A `notebook-audit.md`) secara empiris — baru pernyataan user, belum dibuktikan lewat pembacaan langsung.
+- **G.3 — masih terbuka.** Seluruh fitur terklasifikasi INSTANT berdasarkan notebook training (snapshot, bukan log kejadian). Belum dikonfirmasi apakah asumsi ini tetap berlaku di skema Supabase production (mis. apakah `tenure` tersimpan sebagai field current-state siap pakai). **Gap dengan dampak arsitektural terbesar** — menentukan apakah Milestone 2.2 (desain feature store, Orang #2) punya pekerjaan substansial.
 
-Ketujuh ambiguitas sisanya (G.2, G.4-G.9) berdampak lebih kecil/administratif dan tidak memblokir dimulainya Milestone 1.2, tapi tetap perlu dikonfirmasi DS sebelum penutupan sistem secara keseluruhan.
+Ketujuh ambiguitas sisanya (G.2, G.4-G.9) berdampak lebih kecil/administratif dan tidak memblokir dimulainya Milestone 1.2.
 
 ## Follow-up
 
-- Ajukan G.1 dan G.3 ke user/pemilik sumber data sebelum memulai Milestone 1.6 (kontrak skema PostgreSQL) — kedua gap ini berpotensi mengubah premis dasar desain feature store.
+- **Verifikasi G.1/G.3 terhadap Supabase** — user akan mengisi kredensial read-only di `.env` (template `.env.example` disediakan); begitu tersedia, baca skema tabel + sampel data Supabase dan bandingkan langsung terhadap Bagian A/C `notebook-audit.md`. Ini idealnya dilakukan sebelum Milestone 1.6 (kontrak skema sumber data) dan sebelum Milestone 2.2 (desain feature store) dimulai.
 - G.2 (versi library) perlu dijawab sebelum Milestone 1.2 mengunci `requirements.txt`/`pyproject.toml` secara final — sementara ini Milestone 1.2 bisa mulai dengan versi library terkini yang kompatibel dan menandai sebagai provisional sampai DS mengonfirmasi.

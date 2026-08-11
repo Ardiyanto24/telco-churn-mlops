@@ -46,3 +46,14 @@
 ## Commit
 
 - Commit checkpoint tunggal (Milestone 1.1 dieksekusi dalam satu sesi kerja tanpa jeda antar-checkpoint yang butuh commit terpisah) — `c9dd758` "feat(milestone-1.1): audit notebook Data Scientist untuk inventarisasi fitur". Push tidak dilakukan — menunggu instruksi eksplisit user sesuai `CLAUDE.md`.
+- Commit susulan `63807cc` — catat hash commit di `logs.md` (koreksi kecil, lihat di atas).
+
+## Koreksi Pasca-Penutupan (setelah `report.md` pertama ditulis)
+
+User mengoreksi struktur file dan menambah konteks baru setelah milestone ditutup:
+
+1. **Struktur folder salah** — `notebook-audit.md` semula ditaruh di `milestones/1.1-audit-notebook/`. User mengoreksi: folder `milestones/<id>-<slug>/` khusus untuk `decisions.md`/`logs.md`/`report.md` saja; dokumen teknis substansi pindah ke `docs/` bernomor urut. Ditanyakan ke user nama folder lewat `AskUserQuestion` → dipilih `docs/03-notebook-audit` (bukan nama generik `03-data-reference`; folder baru akan dibuat lagi untuk dokumen referensi lain nanti). File dipindah dengan `git mv`.
+2. **G.1 terjawab sebagian** — user konfirmasi data memang berasal dari Kaggle, tapi sudah diunduh dan ditaruh di Supabase (PostgreSQL) — itulah sumber data production yang dimaksud dokumen arsitektur. User juga menyebut sudah membangun data generator near-real-time yang mengikuti pola data training, sengaja belum diaktifkan sampai platform MLOps selesai.
+3. **Akses Supabase** — ditanyakan ke user cara terima kredensial (`AskUserQuestion`: taruh di `.env.local` / paste di chat / user jalankan query sendiri). User memilih: taruh kredensial di `.env` (bukan `.env.local`), minta dibuatkan `.env.example` sebagai template.
+4. Path referensi di `logs.md` (file ini) dan `report.md` diperbarui mengikuti lokasi baru. `decisions.md` ditambah 1 keputusan baru (#5) mencatat konfirmasi sumber data Supabase.
+5. **Belum dilakukan:** membaca skema/data sungguhan di Supabase untuk memverifikasi G.1 (kecocokan skema) dan G.3 (apakah kolom seperti `tenure` benar current-state siap pakai) secara empiris — menunggu user mengisi `.env`.
