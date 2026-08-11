@@ -86,3 +86,12 @@ Metodologi (Keputusan #2): tiap eksperimen — edit sengaja `src/` → jalankan 
 - Verifikasi: `yaml.safe_load()` (PyYAML diinstal sementara di `.venv`, tidak ditambahkan ke `pyproject.toml` — cuma alat verifikasi lokal, bukan dependency project) — YAML valid, 1 job (`pytest`), 4 step sesuai urutan yang dimaksud.
 - **Keterbatasan eksplisit:** workflow ini BELUM diverifikasi jalan sungguhan di GitHub — repo tidak punya remote sama sekali (`git remote -v` kosong). Validasi yang dilakukan cuma sintaksis lokal, bukan eksekusi nyata di infrastruktur GitHub Actions.
 - Full suite re-run pasca-checkpoint: 123/123 lulus (tidak terpengaruh, workflow file tidak menyentuh kode).
+- Commit: `36376a1` "feat(milestone-1.4): checkpoint 4 - GitHub Actions workflow".
+
+## Checkpoint 5 (final) — Dokumentasi + Penutupan
+
+- **Task 8:** `report.md` ditulis — KK1-KK3 dipetakan ke bukti konkret (audit Checkpoint 1, gap Checkpoint 2, eksperimen Checkpoint 3, workflow Checkpoint 4), keterbatasan (GitHub Actions belum diverifikasi jalan sungguhan, tidak ada remote) dinyatakan eksplisit.
+
+## Penutupan Milestone
+
+Milestone 1.4 selesai — 6 checkpoint, 8 task, 123/123 test lulus (100% branch coverage, naik dari 91% hasil audit awal), 5 bukti uji coba terkontrol, 1 workflow CI/CD. Push tidak dilakukan — menunggu instruksi eksplisit user sesuai `CLAUDE.md`.
