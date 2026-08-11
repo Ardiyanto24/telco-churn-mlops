@@ -41,3 +41,12 @@
 
 - **Task 6:** `tests/schema/test_raw_schema_supabase.py` — pola sama M1.2 Checkpoint 5 (ambil 1500 baris `telco_customers_source`, rename PascalCase->snake_case, skip otomatis kalau `SUPABASE_DB_URL` tidak ada). `RawDataSchema.validate()` — seluruh 1500 baris lolos tanpa error (termasuk `coerce=True` yang diperbaiki di Checkpoint 4, terbukti bekerja pada data nyata, bukan cuma kasus buatan tangan). 1/1 lulus.
 - Full suite `tests/` (transform + schema): **102/102 lulus**.
+- Commit: `5fac9a1` "feat(milestone-1.3): checkpoint 5 - verifikasi raw_schema terhadap Supabase".
+
+## Checkpoint 6 (final) — Dokumentasi + Penutupan
+
+- **Task 7:** Review docstring — `constants.py`, `raw_schema.py`, `request_schema.py`, `__init__.py` (tabel pemetaan) sudah lengkap sejak ditulis di checkpoint masing-masing, tidak ada yang perlu ditambah. `report.md` ditulis — KK1-KK2 dipetakan ke bukti test konkret, temuan inkonsistensi Checkpoint 4 dicatat sebagai bagian "Perubahan dari Plan Awal" (bukan disembunyikan), keterbatasan (`telco_customers_synthetic` kosong, integrasi ke M1.5 belum diverifikasi) dinyatakan eksplisit.
+
+## Penutupan Milestone
+
+Milestone 1.3 selesai — 6 checkpoint, 7 task, 102/102 test lulus (33 baru untuk milestone ini). Push tidak dilakukan — menunggu instruksi eksplisit user sesuai `CLAUDE.md`.
