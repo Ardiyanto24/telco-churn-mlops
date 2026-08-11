@@ -7,3 +7,7 @@ milestone-plan-template.md
 .claude/
 skills-lock.json
 artifacs/
+.venv/
+__pycache__/
+*.egg-info/
+build/

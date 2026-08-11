@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "churn_prediction"
+version = "0.1.0"
+description = "Modul transformasi (preprocessing + feature engineering) untuk model churn prediction telekomunikasi."
+requires-python = ">=3.11"
+# Versi dependency SENGAJA belum dikunci -- lihat milestones/1.2-modularisasi-preprocessing/decisions.md
+# Keputusan #2: pipeline dibangun & diuji dulu, versi eksak dikunci di Checkpoint 6
+# berdasarkan pip freeze dari environment yang terbukti jalan. Tidak ada bukti versi
+# training asli DS di 7 notebook (lihat docs/keputusan-tertunda.md KT-3).
+# scikit-learn>=1.2 adalah pengecualian -- itu bukti konkret dari kode notebook
+# (OneHotEncoder(sparse_output=...) baru ada di sklearn>=1.2), bukan tebakan.
+dependencies = [
+    "pandas",
+    "numpy",
+    "scikit-learn>=1.2",
+    "joblib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

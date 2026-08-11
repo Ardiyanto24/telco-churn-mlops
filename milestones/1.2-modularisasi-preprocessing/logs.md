@@ -14,3 +14,10 @@
 
 - **Task 0a:** `decisions.md` ditulis lengkap (6 keputusan + catatan proses asumsi yang dikoreksi + catatan batas eksplorasi) SEBELUM kode apa pun ditulis, sesuai arahan eksplisit user ("langkah pertama yang seharusnya anda lakukan adalah menuliskan decisions.md").
 - **Task 0b:** `artifacs/` ditambahkan ke `.gitignore`. Diverifikasi `git status --short` — `artifacs/` tidak lagi muncul sebagai untracked, hanya `milestones/1.2-modularisasi-preprocessing/` (folder kerja milestone ini) dan `.gitignore` (edit) yang tersisa.
+- Commit: `7aa4b99` "feat(milestone-1.2): checkpoint 0 - keputusan teknis + gitignore artifact".
+
+## Checkpoint 1 — Scaffold package & dependency
+
+- **Task 1:** `pyproject.toml` ditulis — `churn_prediction`, backend `setuptools`, dependency terbuka (`scikit-learn>=1.2` batas bawah saja, `pandas`/`numpy`/`joblib` tanpa batas), `dev=["pytest>=8.0"]`.
+- **Task 2:** `src/churn_prediction/{__init__.py, transform/{__init__.py, constants.py}}` dibuat. Konstanta di-port dari `tccp-preprocessing-v2.ipynb` cell 5 dengan nama kolom snake_case (Keputusan #1), urutan tiap list dijaga persis sama posisi dengan versi asli (kritis untuk grafting Checkpoint 5). `DROP_COLS` tidak menyertakan `id` (tidak ada di skema `telco_customers_synthetic`).
+- Venv baru `.venv/` dibuat khusus repo ini (ditambahkan ke `.gitignore` bersama `__pycache__/`, `*.egg-info/`, `build/`). `pip install -e ".[dev]"` berhasil tanpa error. Verifikasi import dari venv: `from churn_prediction.transform import constants` — `constants.OHE_COLS` dan `constants.DROP_COLS` tercetak sesuai ekspektasi. Bukti KK3 parsial (modul bisa diinstal & diimpor dari luar konteks dev).
