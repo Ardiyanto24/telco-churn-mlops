@@ -59,3 +59,9 @@
 
 - **Task 13:** `scikit-learn` dikunci `==1.6.1` PERSIS (bukan tebakan — dikonfirmasi Checkpoint 5) — diinstal ulang menggantikan versi terkini yang kebetulan terpasang (1.9.0), seluruh 32 test dijalankan ulang dan tetap lulus (dan `InconsistentVersionWarning` yang sebelumnya muncul saat load artifact HILANG — bukti tambahan versi sudah cocok). `pandas`, `numpy`, `joblib`, `pytest`, `psycopg2-binary` dikunci ke versi yang terbukti jalan (`pip freeze`) tapi tetap ditandai provisional (KT-3 belum tertutup untuk keempatnya). Diverifikasi ulang di venv BARU (`.venv2`, dihapus setelah verifikasi) — `pip install -e ".[dev]"` + 32/32 test lulus.
 - **Task 14:** Review docstring — seluruh 7 class (`StructuralEncoder`, `FeatureEngineer`, `ColumnDropper`, `BinaryEncoder`, `OHEWrapper`, `ScalerWrapper`, `PreprocessingPipeline`) sudah punya docstring lengkap sejak ditulis di checkpoint masing-masing (428-1612 karakter, mencakup input/output/fitur yang diproduksi). `transform/__init__.py` (sebelumnya kosong) diisi docstring modul merangkum kontrak keseluruhan + catatan `DataSplitter` sengaja tidak diport.
+- **Task 15:** `report.md` ditulis — KK1-KK3 dipetakan ke bukti test konkret, keterbatasan (KT-1/2/3, ketiadaan `splits.joblib`) dinyatakan eksplisit, follow-up dicatat untuk Milestone 1.3/1.5.
+- Commit: `3d99efe` "feat(milestone-1.2): checkpoint 6 (final) - kunci dependency, docstring, report".
+
+## Penutupan Milestone
+
+Milestone 1.2 selesai — 7 checkpoint, 15 task, 6 commit (satu per checkpoint sesuai plan), 32/32 test lulus termasuk verifikasi KK2 terhadap artifact asli DS dan 1500 baris data nyata Supabase. Push tidak dilakukan — menunggu instruksi eksplisit user sesuai `CLAUDE.md`.
