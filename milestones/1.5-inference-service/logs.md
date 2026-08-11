@@ -41,3 +41,17 @@ Dibuat `inference/pyfunc_model.py` (`ChurnPyfuncModel`) dan `inference/registry.
 - `pytest tests/ -q` → **127 passed**.
 
 **File disentuh:** `src/churn_prediction/inference/{pyfunc_model,registry}.py` (baru), `tests/inference/{test_pyfunc_model,test_registry}.py` (baru), `pyproject.toml` (tambah lightgbm/xgboost), `milestones/1.5-inference-service/decisions.md` (Keputusan #9), `docs/keputusan-tertunda.md` (update KT-3).
+
+## Checkpoint 3 — Versi 2 (uji) + bukti KK3 (load-by-version)
+
+`registry.load_model_by_version()` sudah ada sejak Checkpoint 2 (dipakai Task 3). Checkpoint ini menambah `test_load_by_version_returns_version_appropriate_results` di `test_registry.py` -- bukti utama KK3.
+
+**Mencari baris uji yang bermakna:** dicoba 500 baris real `telco_customers_source` (Supabase) lewat `registry.build_bundle()` -- dicari baris yang probability-nya jatuh di ANTARA threshold versi 2 uji (0.5) dan versi 1 (0.6238), supaya perbedaan threshold benar-benar menghasilkan `churn_label` berbeda (bukan cuma diasumsikan). Ditemukan 37 baris dalam band tersebut dari 500; dipilih `id=2` (probability 0.566305) sebagai fixture tetap (di-hardcode di test, bukan query live Supabase -- konsisten pola unit test lain yang hermetic/offline).
+
+Test: registrasi bundle sungguhan (threshold 0.6238) sebagai versi 1, bundle uji (model SAMA, threshold 0.5) sebagai versi 2, keduanya ke tracking URI SQLite terisolasi yang SAMA dalam satu test. `load_model_by_version("1")` dan `load_model_by_version("2")` dipanggil pada baris id=2 yang sama.
+
+**Verifikasi:**
+- `pytest tests/inference/test_registry.py -v` → **3 passed**. Hasil KK3: `churn_probability` versi 1 == versi 2 (`pytest.approx`, model identik) TAPI `churn_label` versi 1 = 0 (0.566 < 0.6238) sedangkan versi 2 = 1 (0.566 >= 0.5) -- pembuktian langsung bahwa `load_model_by_version()` mengambil versi yang benar-benar diminta, bukan cache/selalu-versi-terakhir.
+- `pytest tests/ -q` → **128 passed**.
+
+**File disentuh:** `tests/inference/test_registry.py` (tambah 1 test + fixture `_band_row_df`).

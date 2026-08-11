@@ -39,6 +39,23 @@ def _tracking_uri(tmp_path: Path) -> str:
     return f"sqlite:///{tmp_path.as_posix()}/mlruns_test.db"
 
 
+def _band_row_df():
+    """Baris id=2 dari telco_customers_source (Supabase) -- probability churn
+    verified ~0.566 lewat model_final.joblib+preprocessor asli. Sengaja dipilih
+    karena jatuh DI ANTARA threshold versi 2 uji (0.5) dan versi 1 (0.6238,
+    Keputusan #2/#3 di decisions.md) -- baris ini menghasilkan churn_label
+    BERBEDA tergantung versi yang dimuat, bukti load_model_by_version()
+    benar-benar version-aware (bukan cache/selalu-versi-terakhir)."""
+    return pd.DataFrame([dict(
+        gender="Male", senior_citizen=0, partner="Yes", dependents="No",
+        tenure=58, phone_service="Yes", multiple_lines="Yes",
+        internet_service="Fiber optic", online_security="No", online_backup="Yes",
+        device_protection="No", tech_support="No", streaming_tv="Yes", streaming_movies="Yes",
+        contract="Month-to-month", paperless_billing="Yes",
+        payment_method="Electronic check", monthly_charges=100.40, total_charges=5841.35,
+    )])
+
+
 def test_build_bundle_returns_pipeline_model_threshold():
     bundle = registry.build_bundle()
     assert set(bundle.keys()) == {"pipeline", "model", "threshold"}
@@ -61,3 +78,39 @@ def test_register_and_load_roundtrip_version_1(tmp_path):
     assert out["churn_probability"].between(0, 1).all()
     expected_label = int(out["churn_probability"].iloc[0] >= 0.6238)
     assert out["churn_label"].iloc[0] == expected_label
+
+
+def test_load_by_version_returns_version_appropriate_results(tmp_path):
+    """KK3 -- bukti utama Milestone 1.5: mekanisme load-by-version benar-benar
+    mengambil versi yang diminta, bukan cache/selalu-versi-terakhir.
+
+    Versi 1 = bundle sungguhan (threshold 0.6238). Versi 2 = bundle uji sengaja
+    berbeda (model SAMA, threshold 0.5 -- Keputusan #2, BUKAN kandidat produksi
+    sungguhan). Pada baris input yang SAMA (id=2, probability ~0.566): kedua
+    versi harus menghasilkan probability IDENTIK (model sama) tapi churn_label
+    BERBEDA (0.566 < 0.6238 tapi >= 0.5).
+    """
+    tracking_uri = _tracking_uri(tmp_path)
+
+    bundle_v1 = registry.build_bundle(threshold=0.6238)
+    info_v1 = registry.register_model(bundle_v1, tracking_uri=tracking_uri)
+    assert str(info_v1.registered_model_version) == "1"
+
+    bundle_v2 = registry.build_bundle(threshold=0.5)
+    info_v2 = registry.register_model(bundle_v2, tracking_uri=tracking_uri)
+    assert str(info_v2.registered_model_version) == "2"
+
+    df = _band_row_df()
+    out_v1 = registry.load_model_by_version("1", tracking_uri=tracking_uri).predict(df)
+    out_v2 = registry.load_model_by_version("2", tracking_uri=tracking_uri).predict(df)
+
+    proba_v1 = out_v1["churn_probability"].iloc[0]
+    proba_v2 = out_v2["churn_probability"].iloc[0]
+    assert 0.5 < proba_v1 < 0.6238, f"probability {proba_v1} di luar band uji -- fixture perlu diperbarui"
+    assert proba_v1 == pytest.approx(proba_v2)
+
+    label_v1 = out_v1["churn_label"].iloc[0]
+    label_v2 = out_v2["churn_label"].iloc[0]
+    assert label_v1 == 0  # 0.566 < threshold versi 1 (0.6238)
+    assert label_v2 == 1  # 0.566 >= threshold versi 2 (0.5)
+    assert label_v1 != label_v2
