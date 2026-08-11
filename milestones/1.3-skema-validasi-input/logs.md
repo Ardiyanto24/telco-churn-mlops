@@ -22,3 +22,8 @@
 
 - **Task 2:** `schema/raw_schema.py` dibangun terprogram dari `schema/constants.py` (`pandera.DataFrameSchema`, `strict=False`). 8 unit test: 1 valid + 7 kasus pelanggaran (kolom hilang, tipe salah, `tenure` di atas 72, `tenure=0`, `monthly_charges` negatif, `senior_citizen=2`, kategori `contract="Weekly"` tak dikenal) — seluruhnya `pandera.errors.SchemaError` dengan nama kolom tersebut di pesan (`pytest.raises(..., match=...)`). 8/8 lulus.
 - Perbaikan kecil: `import pandera as pa` diganti `import pandera.pandas as pa` (FutureWarning pandera — API top-level akan dihapus, direkomendasikan submodul `.pandas` untuk validasi DataFrame). Tidak ada warning tersisa.
+- Commit: `1df0acf` "feat(milestone-1.3): checkpoint 2 - schema/raw_schema.py (pandera)".
+
+## Checkpoint 3 — Skema real-time (Pydantic)
+
+- **Task 3:** `schema/request_schema.py` dibangun terprogram dari `schema/constants.py` via `pydantic.create_model()` — `Literal[tuple(categories)]` untuk field kategorikal, `Field(gt=/ge=/le=)` untuk numerik. Verifikasi cepat: `ChurnPredictionRequest.model_fields` menghasilkan tepat 19 field sesuai `FEATURE_COLUMNS`. 8 unit test paralel dengan `test_raw_schema.py` (kasus valid + 7 pelanggaran yang sama persis) — seluruhnya `pydantic.ValidationError` menyebut field yang salah. 8/8 lulus.
