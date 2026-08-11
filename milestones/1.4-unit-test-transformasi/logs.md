@@ -78,3 +78,11 @@ Metodologi (Keputusan #2): tiap eksperimen — edit sengaja `src/` → jalankan 
 | 5 | `StructuralEncoder.STRUCTURAL_MAP` | `"No internet service": -1` -> `1` | `test_maps_all_four_values` | Nilai `online_security` baris ke-3 berubah `-1 -> 1`, terdeteksi tepat di baris yang relevan |
 
 **Kesimpulan KK3:** seluruh 5 fungsi berisiko tinggi (formula matematis, encoder kategori, validator skema) terbukti punya test yang benar-benar sensitif terhadap regresi — bukan sekadar ada tapi tidak efektif. Verifikasi akhir: `pytest --cov=churn_prediction --cov-branch tests/ -q` setelah revert terakhir — **123/123 lulus, 100% branch coverage**, `git status --short` kosong (tidak ada mutasi yang tertinggal atau ter-commit tidak sengaja).
+- Commit: `e1966d7` "feat(milestone-1.4): checkpoint 3 - uji coba terkontrol KK3".
+
+## Checkpoint 4 — GitHub Actions
+
+- **Task 7:** `.github/workflows/test.yml` — trigger `push`+`pull_request`, Python 3.11, `pip install -e ".[dev]"`, `pytest tests/ -v --cov=churn_prediction --cov-branch --cov-report=term-missing`. Komentar eksplisit soal `SUPABASE_DB_URL` (auto-skip tanpa secret, cara mengaktifkan nanti — Keputusan #3).
+- Verifikasi: `yaml.safe_load()` (PyYAML diinstal sementara di `.venv`, tidak ditambahkan ke `pyproject.toml` — cuma alat verifikasi lokal, bukan dependency project) — YAML valid, 1 job (`pytest`), 4 step sesuai urutan yang dimaksud.
+- **Keterbatasan eksplisit:** workflow ini BELUM diverifikasi jalan sungguhan di GitHub — repo tidak punya remote sama sekali (`git remote -v` kosong). Validasi yang dilakukan cuma sintaksis lokal, bukan eksekusi nyata di infrastruktur GitHub Actions.
+- Full suite re-run pasca-checkpoint: 123/123 lulus (tidak terpengaruh, workflow file tidak menyentuh kode).

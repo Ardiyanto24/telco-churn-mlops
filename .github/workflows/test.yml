@@ -1,0 +1,30 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package + dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run test suite
+        run: pytest tests/ -v --cov=churn_prediction --cov-branch --cov-report=term-missing
+        # Test yang butuh SUPABASE_DB_URL (integration test, mis.
+        # tests/transform/test_parity_real_artifact.py dan
+        # tests/schema/test_raw_schema_supabase.py) otomatis SKIP di sini --
+        # secret belum dikonfigurasi karena repo belum punya remote GitHub
+        # (lihat milestones/1.4-unit-test-transformasi/decisions.md
+        # Keputusan #3). Untuk mengaktifkan test integrasi Supabase di CI:
+        # tambahkan SUPABASE_DB_URL sebagai Repository Secret (Settings ->
+        # Secrets and variables -> Actions), lalu tambahkan
+        # `env: SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}` di step ini.
