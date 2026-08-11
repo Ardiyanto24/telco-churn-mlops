@@ -37,3 +37,10 @@
 - **Task 7 (`OHEWrapper`):** port 1:1 cell 11 (`drop='first'`, `sparse_output=False`, `handle_unknown='ignore'`, `dtype=np.float64`). 3 unit test: nama+jumlah dummy dicek terhadap kombinasi kategori sample (drop_first membuang kategori pertama alfabetis, dikonfirmasi manual sesuai `notebook-audit.md` C.5), kategori tak dikenal saat transform tidak melempar exception (hanya `UserWarning` — perilaku yang diharapkan, dikonfirmasi bukan kegagalan). 3/3 lulus.
 - **Task 8 (`ScalerWrapper`):** port 1:1 cell 12. 2 unit test — mean≈0/std≈1 pada kolom target setelah fit_transform, kolom binary tidak tersentuh. 2/2 lulus.
 - Total suite `tests/transform/`: 27/27 lulus.
+- Commit: `c0c87c6` "feat(milestone-1.2): checkpoint 3 - BinaryEncoder, OHEWrapper, ScalerWrapper".
+
+## Checkpoint 4 — Orkestrasi pipeline + KK1 (statelessness)
+
+- **Task 9 (`PreprocessingPipeline`):** port 1:1 cell 13, orkestrasi 6 step urutan kritis. Test end-to-end dengan DataFrame buatan tangan 4 baris (mencakup seluruh kategori Contract/InternetService/PaymentMethod dan seluruh 4 grup `tenure_group`) — output persis `(4, 29)`, `set(columns)` cocok 100% dengan 29 nama fitur `notebook-audit.md` Bagian C. `transform()` pada baris baru setelah `fit()` juga diverifikasi. 2/2 lulus.
+- **Task 10 (KK1 statelessness):** dua uji — (a) `transform()` dipanggil 3x pada input identik → `pd.testing.assert_frame_equal` ketiganya sama persis; (b) `fit_transform` pada dua DataFrame independen berurutan (df_a hanya grup tenure G1/G2, df_b hanya G3/G4) → `scaler_wrapper_._scaler.mean_` berubah total antar fit, dan kategori OHE hasil fit kedua (`ohe_wrapper_._encoder.categories_`) TIDAK mengandung `"Month-to-month"` (kategori yang hanya ada di df_a) — bukti konkret parameter fit ter-overwrite bersih, bukan terakumulasi/gabungan. 2/2 lulus.
+- Total suite `tests/transform/`: 31/31 lulus.
