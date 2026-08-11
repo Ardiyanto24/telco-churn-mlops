@@ -27,3 +27,11 @@
 ## Checkpoint 3 — Skema real-time (Pydantic)
 
 - **Task 3:** `schema/request_schema.py` dibangun terprogram dari `schema/constants.py` via `pydantic.create_model()` — `Literal[tuple(categories)]` untuk field kategorikal, `Field(gt=/ge=/le=)` untuk numerik. Verifikasi cepat: `ChurnPredictionRequest.model_fields` menghasilkan tepat 19 field sesuai `FEATURE_COLUMNS`. 8 unit test paralel dengan `test_raw_schema.py` (kasus valid + 7 pelanggaran yang sama persis) — seluruhnya `pydantic.ValidationError` menyebut field yang salah. 8/8 lulus.
+- Commit: `7e9b4d4` "feat(milestone-1.3): checkpoint 3 - schema/request_schema.py (Pydantic)".
+
+## Checkpoint 4 — Verifikasi KK2: konsistensi dua skema + dokumentasi pemetaan
+
+- **Task 4:** `tests/schema/test_schema_consistency.py` — pendekatan "behavioral" (uji apakah kedua skema menerima/menolak nilai yang SAMA secara identik, bukan introspeksi struktur internal pandera/pydantic yang rapuh). 40 test: field set identik, valid row diterima keduanya, tiap kategori valid/tak-valid per 16 kolom kategorikal, tiap batas rentang per 3 kolom numerik.
+  - **Temuan real (bukan bug test) saat run pertama:** `total_charges=0` (nilai batas `ge=0`, valid secara semantik) DITOLAK `RawDataSchema` (pandera, dtype `int64` vs deklarasi `float64`, `coerce=False`) tapi DITERIMA `ChurnPredictionRequest` (Pydantic otomatis coerce int->float) — inkonsistensi nyata yang justru dirancang untuk ditangkap Task 4 ini. **Diperbaiki:** `coerce=True` ditambahkan ke Column numerik `raw_schema.py` (kolom kategorikal tetap `coerce=False`). Konsekuensi: `test_wrong_type_rejected` di `test_raw_schema.py` disesuaikan menerima `(SchemaError, SchemaErrors)` — pandera melempar `SchemaErrors` (bukan `SchemaError`) untuk kegagalan coercion tipe, kelas exception terpisah tapi sama-sama penolakan yang sah.
+  - Setelah fix: 40/40 lulus, total suite `tests/schema/`: 69/69 lulus.
+- **Task 5:** Tabel pemetaan 19 field->kolom->tipe->constraint ditulis eksplisit di docstring `schema/__init__.py` (identity mapping tetap didokumentasikan penuh, bukan dilewatkan karena "kebetulan sama nama").

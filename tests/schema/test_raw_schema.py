@@ -44,8 +44,11 @@ def test_missing_column_rejected():
 
 
 def test_wrong_type_rejected():
+    # Kolom numerik pakai coerce=True (lihat raw_schema.py) -- nilai yang benar-benar
+    # tidak bisa dikonversi (mis. "abc") melempar SchemaErrors (coercion), bukan
+    # SchemaError (value check) -- keduanya bentuk penolakan yang sah.
     df = pd.DataFrame([_valid_row(tenure="abc")])
-    with pytest.raises(pandera.errors.SchemaError):
+    with pytest.raises((pandera.errors.SchemaError, pandera.errors.SchemaErrors)):
         RawDataSchema.validate(df)
 
 

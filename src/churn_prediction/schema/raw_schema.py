@@ -13,6 +13,16 @@ Memproyeksikan hanya kolom fitur (membuang `synthetic_id`/`generation_id`/
 `strict=False` -- kolom di luar 19 kolom fitur (kalau pemanggil belum
 memproyeksikan) tidak menyebabkan validasi gagal; skema ini fokus memvalidasi
 KEHADIRAN dan KEBENARAN 19 kolom fitur, bukan melarang kolom tambahan.
+
+Kolom numerik pakai `coerce=True` -- ditemukan saat Checkpoint 4 (uji
+konsistensi terhadap request_schema.py/Pydantic): DataFrame satu-baris dengan
+nilai `total_charges=0` (int) di-infer pandas sebagai `int64`, dan tanpa
+`coerce`, pandera menolaknya murni karena dtype (int64 vs float64 dideklarasikan)
+walau nilainya semantik valid -- sementara Pydantic otomatis coerce int->float.
+`coerce=True` menyamakan perilaku (nilai int yang valid secara numerik tidak
+ditolak hanya karena representasi tipe Python/pandas yang kebetulan berbeda).
+Kolom kategorikal TETAP `coerce=False` (default) -- tidak ada alasan serupa
+untuk melonggarkan tipe teks/kategori.
 """
 
 import pandera.pandas as pa
@@ -34,7 +44,7 @@ for _col, _spec in constants.NUMERIC_RANGES.items():
         _checks.append(Check.le(_spec["le"]))
     if "gt" in _spec:
         _checks.append(Check.gt(_spec["gt"]))
-    _columns[_col] = Column(_spec["dtype"], _checks, nullable=False)
+    _columns[_col] = Column(_spec["dtype"], _checks, nullable=False, coerce=True)
 
 RawDataSchema = pa.DataFrameSchema(_columns, strict=False, coerce=False)
 """pandera.DataFrameSchema untuk data mentah batch, 19 kolom fitur snake_case.
