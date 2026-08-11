@@ -20,6 +20,11 @@ dependencies = [
     "numpy==2.5.2",
     "scikit-learn==1.6.1",
     "joblib==1.5.3",
+    # pandera/pydantic: library baru Milestone 1.3 (validasi skema), tidak pernah
+    # dipakai DS -- dipin ke versi stabil terkini, bukan "provisional" ala KT-3
+    # (lihat milestones/1.3-skema-validasi-input/decisions.md Keputusan #3).
+    "pandera==0.32.1",
+    "pydantic==2.13.4",
 ]
 
 [project.optional-dependencies]
