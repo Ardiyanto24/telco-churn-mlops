@@ -43,3 +43,11 @@ Ditambah 1 baris instruksi wajib-baca-CHANGELOG di `raw-schema-contract.md` Bagi
 **Verifikasi:** format entry + aturan breaking-change dibaca ulang seolah pembaca baru (Orang #2/#3 hipotetis) — jelas tanpa perlu konteks tambahan dari luar dokumen ini sendiri.
 
 **File disentuh:** `docs/04-schema-contract/CHANGELOG.md` (baru), `docs/04-schema-contract/raw-schema-contract.md` (tambah 1 baris di Bagian 5).
+
+## Checkpoint 4 — Tutup KT-1/KT-2, tambah KT-4
+
+`docs/keputusan-tertunda.md` diupdate: KT-1 dan KT-2 ditandai **STATUS: DITUTUP** dengan rujukan ke `milestones/1.6-kontrak-skema-sumber-data/decisions.md` dan `docs/04-schema-contract/raw-schema-contract.md` (entry ASLI tidak dihapus — riwayat konteks/opsi yang pernah dipertimbangkan tetap terlihat, pola sama update parsial KT-3 di M1.2/M1.5).
+
+Ditambah **KT-4 — Kolom identitas pelanggan (`customer_key`) belum ada di skema `telco_customers_synthetic`**: konteks (konsekuensi langsung penutupan KT-2), kenapa belum dikerjakan (migrasi skema + implementasi generator di luar cakupan seluruh sistem ini, butuh koordinasi eksplisit), pemicu peninjauan (sebelum generator diaktifkan, trigger sama dengan Fase 2 KT-1).
+
+**File disentuh:** `docs/keputusan-tertunda.md` (edit: tutup KT-1/KT-2, tambah KT-4).
