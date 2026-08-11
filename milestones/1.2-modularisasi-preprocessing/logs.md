@@ -29,3 +29,11 @@
 - **Task 4 (`FeatureEngineer`):** port 1:1 cell 8, 6 fitur turunan. 14 unit test termasuk kasus tepi (`total_charges=0` fallback ratio `1.0`; 9 titik batas bin `tenure_group`; seluruh addon `'No internet service'` → `service_count=0`) PLUS baris nyata `id=0` (`notebook-audit.md` H.2) — `tc_residual` dan `monthly_to_total_ratio` dicek `pytest.approx` terhadap perhitungan manual formula, cocok persis. `is_auto_payment` dikonfirmasi `0` untuk `'Mailed check'` dan `1` untuk kedua metode otomatis — 14/14 lulus.
 - **Task 5 (`ColumnDropper`):** port 1:1 cell 9. 3 unit test (drop normal, kolom hilang tidak error, default dari constants) — 3/3 lulus.
 - Total suite `tests/transform/`: 20/20 lulus (`pytest tests/transform/ -v`).
+- Commit: `f55f8fb` "feat(milestone-1.2): checkpoint 2 - StructuralEncoder, FeatureEngineer, ColumnDropper".
+
+## Checkpoint 3 — Transformer: encoding + scaling
+
+- **Task 6 (`BinaryEncoder`):** port 1:1 cell 10. 2 unit test — 2/2 lulus.
+- **Task 7 (`OHEWrapper`):** port 1:1 cell 11 (`drop='first'`, `sparse_output=False`, `handle_unknown='ignore'`, `dtype=np.float64`). 3 unit test: nama+jumlah dummy dicek terhadap kombinasi kategori sample (drop_first membuang kategori pertama alfabetis, dikonfirmasi manual sesuai `notebook-audit.md` C.5), kategori tak dikenal saat transform tidak melempar exception (hanya `UserWarning` — perilaku yang diharapkan, dikonfirmasi bukan kegagalan). 3/3 lulus.
+- **Task 8 (`ScalerWrapper`):** port 1:1 cell 12. 2 unit test — mean≈0/std≈1 pada kolom target setelah fit_transform, kolom binary tidak tersentuh. 2/2 lulus.
+- Total suite `tests/transform/`: 27/27 lulus.
