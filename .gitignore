@@ -11,3 +11,5 @@ artifacs/
 __pycache__/
 *.egg-info/
 build/
+.coverage
+htmlcov/
