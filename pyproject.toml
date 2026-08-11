@@ -21,7 +21,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+# psycopg2-binary hanya untuk test integrasi Checkpoint 5 (baca data real Supabase
+# demi verifikasi KK2) -- bukan dependency runtime modul transform itu sendiri.
+dev = ["pytest>=8.0", "psycopg2-binary>=2.9"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
