@@ -85,3 +85,17 @@ Dibuat `tests/inference/test_e2e_parity.py`, perluasan langsung M1.2 Checkpoint 
 `pytest tests/ -q` (venv pengembangan, setelah `pyproject.toml` diperbaiki) → **136 passed**.
 
 **File disentuh:** `pyproject.toml` (tambah `sqlalchemy`+`alembic`), `tests/inference/test_e2e_parity.py` (baru), `milestones/1.5-inference-service/decisions.md` (Keputusan #10). Tidak ada file permanen dari verifikasi venv terpisah (sesuai plan).
+
+## Checkpoint 6 (final) — Dokumentasi + Penutupan Milestone
+
+Ditulis docstring lengkap `inference/__init__.py`: instalasi, kontrak `predict()` (tabel 4 kolom output), contoh pemanggilan, catatan eksplisit MLflow lokal/uji-M1.5 vs registrasi resmi M2.1, cara pakai `registry.build_bundle()`/`register_model()` untuk registrasi versi baru. `predict` di-re-export di level package (`from churn_prediction.inference import predict`) -- diverifikasi tidak ada circular import.
+
+Dependency `pyproject.toml` sudah terkunci ke versi eksak sepanjang Checkpoint 0-5 (bukan ditunda ke sini) -- setiap versi (`mlflow-skinny`, `lightgbm`, `xgboost`, `sqlalchemy`, `alembic`) sudah dipin persis versi yang TERBUKTI jalan (diverifikasi ulang lewat 2 venv terpisah di Checkpoint 5), jadi tidak ada pin tertunda yang perlu diselesaikan di checkpoint ini.
+
+`report.md` ditulis memetakan KK1-KK3 ke bukti Checkpoint 5, mencatat 10 keputusan total (6 klarifikasi + 4 turunan dari temuan teknis), keterbatasan (MLflow lokal-only, KT-3 belum tertutup untuk lightgbm/xgboost), dan follow-up untuk M2.1.
+
+**Verifikasi akhir:** `pytest tests/ -q` → seluruh test suite tetap hijau.
+
+**Penutupan Milestone 1.5:** package `churn_prediction.inference` selesai -- `predict(df, model_version) -> DataFrame` terverifikasi KK1 (2x venv terpisah, gap `sqlalchemy`/`alembic` ditemukan+diperbaiki), KK2 (parity end-to-end 1000 baris Supabase, probability+label identik), KK3 (load-by-version version-aware, 2 versi berbeda menghasilkan hasil berbeda sesuai versi). Push ke GitHub belum dilakukan, menunggu instruksi eksplisit user sesuai `CLAUDE.md`.
+
+**File disentuh:** `src/churn_prediction/inference/__init__.py` (docstring lengkap), `milestones/1.5-inference-service/report.md` (baru).
