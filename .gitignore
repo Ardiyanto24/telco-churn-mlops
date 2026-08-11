@@ -3,3 +3,7 @@
 AGENT.md
 CLAUDE.md
 milestone-plan-template.md
+.agents/
+.claude/
+skills-lock.json
+artifacs/
