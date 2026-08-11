@@ -23,3 +23,13 @@ Query read-only langsung ke Supabase (`information_schema.columns`, `information
 **Verifikasi:** query dijalankan langsung (bukan asumsi dari dokumen lama) — hasil query disandingkan manual kolom-per-kolom, constraint-per-constraint terhadap `notebook-audit.md` Bagian H.2-H.4. Tidak ditemukan satu pun perbedaan (kolom baru/hilang, tipe berubah, constraint berubah, row count berubah).
 
 **File disentuh:** `milestones/1.6-kontrak-skema-sumber-data/logs.md` (catatan verifikasi ini). Tidak ada file lain (murni query read-only, tidak ada skrip permanen ditambahkan ke repo).
+
+## Checkpoint 2 — Dokumen kontrak skema utama
+
+Ditulis `docs/04-schema-contract/raw-schema-contract.md` (5 bagian): (1) kontrak dua-fase dengan tabel keputusan+konsekuensi eksplisit untuk pemanggil M2.x/M3.x; (2) skema kolom lengkap ketiga tabel (bersumber dari hasil query Checkpoint 1, bukan disalin ulang dari `notebook-audit.md` tanpa verifikasi); (3) semantik ambigu (unit USD/bulan, timezone UTC via `timestamptz`, null handling kedua tabel); (4) semantik update append-only snapshot dengan definisi query "current state" eksplisit + gap `customer_key` dicatat lengkap; (5) placeholder rujukan ke CHANGELOG (diisi Checkpoint 3).
+
+`.gitkeep` di `docs/04-schema-contract/` dihapus (folder sudah berisi konten sungguhan).
+
+**Verifikasi:** setiap kolom di ketiga tabel (21+2 metadata untuk source, 20+3 metadata untuk synthetic, 7 untuk generation_runs) punya baris di dokumen dengan tipe+constraint — dicek lengkap terhadap hasil Checkpoint 1, tidak ada yang terlewat.
+
+**File disentuh:** `docs/04-schema-contract/raw-schema-contract.md` (baru), `docs/04-schema-contract/.gitkeep` (dihapus).
