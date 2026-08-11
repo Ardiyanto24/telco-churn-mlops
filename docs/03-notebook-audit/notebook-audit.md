@@ -1,8 +1,8 @@
 # Audit Notebook — Milestone 1.1 (Productionization)
 
-**Status:** Final — dasar acuan Milestone 1.2 (modularisasi) dan Milestone 1.3 (skema/validasi), serta Milestone 2.2 (desain feature store, Orang #2).
+**Status:** Final — dasar acuan Milestone 1.2 (modularisasi) dan Milestone 1.3 (skema/validasi), serta Milestone 2.2 (desain feature store, Orang #2). Diperbarui dengan verifikasi langsung terhadap Supabase (sumber data production) — lihat Bagian H.
 
-**Ringkasan satu paragraf:** Model churn yang diserahkan Data Scientist adalah `voting_ensemble` (soft-voting terbobot dari LightGBM+class_weight, XGBoost+class_weight, XGBoost+SMOTE dengan bobot `[5,3,1]`), dilatih di atas 29 fitur numerik hasil pipeline preprocessing yang terdokumentasi sangat eksplisit di `tccp-preprocessing-v2.ipynb` (setiap langkah merujuk ke "Insight N" dari dokumen keputusan EDA eksternal). Model menghasilkan **probabilitas** (bukan label langsung) dan production **wajib** menerapkan threshold `0.6238` (bukan 0.5) untuk konversi ke label biner. Temuan paling penting untuk arsitektur sistem: **seluruh 29 fitur final, dan seluruh 21 kolom mentah sumbernya, adalah fitur INSTANT** — tidak ditemukan satu pun fitur yang butuh agregasi lintas baris/waktu/pelanggan lain di manapun dalam 7 notebook ini (lihat Bagian C dan catatan penting di bawah).
+**Ringkasan satu paragraf:** Model churn yang diserahkan Data Scientist adalah `voting_ensemble` (soft-voting terbobot dari LightGBM+class_weight, XGBoost+class_weight, XGBoost+SMOTE dengan bobot `[5,3,1]`), dilatih di atas 29 fitur numerik hasil pipeline preprocessing yang terdokumentasi sangat eksplisit di `tccp-preprocessing-v2.ipynb` (setiap langkah merujuk ke "Insight N" dari dokumen keputusan EDA eksternal). Model menghasilkan **probabilitas** (bukan label langsung) dan production **wajib** menerapkan threshold `0.6238` (bukan 0.5) untuk konversi ke label biner. Temuan paling penting untuk arsitektur sistem: **seluruh 29 fitur final, dan seluruh 21 kolom mentah sumbernya, adalah fitur INSTANT** — tidak ditemukan satu pun fitur yang butuh agregasi lintas baris/waktu/pelanggan lain di manapun dalam 7 notebook ini (lihat Bagian C dan catatan penting di bawah), dan diperkuat oleh verifikasi langsung ke Supabase (Bagian H) — hanya ada 3 tabel di seluruh project, tidak ada tabel log/transaksi historis apa pun.
 
 ---
 
@@ -15,6 +15,7 @@
 - [E. Cross-Check Notebook Sekunder](#e-cross-check-notebook-sekunder)
 - [F. Dependency Library](#f-dependency-library)
 - [G. Daftar Ambiguitas untuk Data Scientist](#g-daftar-ambiguitas-untuk-data-scientist)
+- [H. Verifikasi Sumber Data Production (Supabase)](#h-verifikasi-sumber-data-production-supabase)
 
 ---
 
@@ -189,11 +190,11 @@ Kelima notebook berikut dikonfirmasi **tidak mengulang logika transformasi** —
 
 Setiap item merujuk temuan sumbernya. Tidak diputuskan sepihak di sini — didaftarkan sebagai pertanyaan terbuka sesuai batas implementasi CLAUDE.md.
 
-**G.1 — Identitas sumber data mentah.** Dataset yang dipakai adalah `/kaggle/input/competitions/playground-series-s6e3/train.csv` (Kaggle Playground Series S6E3, 594.194 baris), bukan dataset IBM Telco Customer Churn klasik (~7.043 baris) meski skema kolomnya identik/mirip. *(Sumber: Bagian A, `tccp-eda.ipynb` cell 5, `tccp-preprocessing-v2.ipynb` cell 5.)* **Pertanyaan:** apakah PostgreSQL production nanti benar-benar memiliki skema kolom yang identik dengan dataset kompetisi ini, atau dataset ini hanya proxy pelatihan dan skema production sesungguhnya berbeda? Ini menentukan validitas Milestone 1.6 (kontrak skema sumber data) dan harus dikonfirmasi sebelum Milestone 1.2 dimulai.
+**G.1 — Identitas sumber data mentah. STATUS: TERJAWAB (lihat Bagian H).** Dataset yang dipakai adalah `/kaggle/input/competitions/playground-series-s6e3/train.csv` (Kaggle Playground Series S6E3, 594.194 baris), bukan dataset IBM Telco Customer Churn klasik (~7.043 baris) meski skema kolomnya identik/mirip. *(Sumber: Bagian A, `tccp-eda.ipynb` cell 5, `tccp-preprocessing-v2.ipynb` cell 5.)* **Jawaban terverifikasi:** data ini sudah diunduh dan dimuat apa adanya (byte-identik, dikonfirmasi lewat query langsung) ke tabel `telco_customers_source` di Supabase — itulah PostgreSQL production yang dimaksud dokumen arsitektur. Lihat Bagian H untuk bukti. **Sub-pertanyaan baru muncul dari verifikasi ini** → lihat G.10.
 
 **G.2 — Versi library tidak tercatat di manapun.** *(Sumber: Bagian F.)* **Pertanyaan:** environment Kaggle apa (image/tanggal) yang dipakai saat training, atau bisakah DS menyediakan `pip freeze` dari sesi training aslinya? Tanpa ini, Milestone 1.2 (penguncian dependency) harus menebak versi kompatibel dan berisiko training-serving skew jika tebakan salah (prinsip Bagian 2 dokumen arsitektur).
 
-**G.3 — Seluruh fitur terklasifikasi INSTANT — tidak ada fitur historis/agregat ditemukan.** *(Sumber: Bagian C, catatan klasifikasi.)* Dataset training adalah snapshot satu-baris-per-pelanggan tanpa log kejadian. **Pertanyaan kritis untuk Orang #2:** di PostgreSQL production, apakah kolom seperti `tenure` (dan seluruh kolom lain) tersedia sebagai *current-state field* yang sudah dipelihara sistem sumber (sehingga betul-betul instant, tinggal dibaca satu baris), atau perlu diturunkan dari tabel log/transaksi (sehingga jadi historis, butuh feature store)? Jawaban ini menentukan apakah Milestone 2.2 (desain feature store) punya pekerjaan substansial atau nyaris kosong — dampaknya besar terhadap desain Bagian 2 dokumen arsitektur (feature store precomputed) dan **wajib dikonfirmasi sebelum Milestone 1.6/2.2 dimulai**.
+**G.3 — Seluruh fitur terklasifikasi INSTANT — tidak ada fitur historis/agregat ditemukan. STATUS: DIPERKUAT, BELUM 100% TERTUTUP.** *(Sumber: Bagian C, catatan klasifikasi; diperkuat Bagian H.)* Dataset training adalah snapshot satu-baris-per-pelanggan tanpa log kejadian. **Verifikasi Supabase (Bagian H):** seluruh project Supabase hanya berisi 3 tabel (`telco_customers_source`, `telco_customers_synthetic`, `synthetic_generation_runs`) — tidak ada satu pun tabel log/transaksi/riwayat kejadian yang bisa jadi sumber agregasi historis. Ini bukti kuat bahwa klasifikasi INSTANT-semua di Bagian C tetap berlaku untuk skema production yang ada saat ini. **Yang belum ditutup:** apakah kolom seperti `tenure` di `telco_customers_source`/`telco_customers_synthetic` benar-benar dipelihara sebagai *current-state field* yang terus diperbarui in-place per pelanggan dari waktu ke waktu (row terus sama, kolom `tenure` naik tiap bulan), atau setiap baris adalah snapshot beku satu waktu (row baru per snapshot, bukan update) — perbedaan ini tidak terlihat dari skema tabel saja, perlu dikonfirmasi ke pemilik sistem data generator. Dampaknya ke Milestone 2.2 (desain feature store) tetap seperti dijelaskan semula.
 
 **G.4 — `MultipleLines` di `ParentFeatureMapper.OHE_PARENTS` (`tccp-xai-gate-1.ipynb`).** *(Sumber: Bagian E.)* `MultipleLines` didaftarkan sebagai OHE-parent tapi tidak pernah menghasilkan kolom `MultipleLines_...` — dikonfirmasi lewat cross-check Bagian E bahwa ini adalah *no-op* (fungsi `to_parent` hanya match prefix, tidak pernah cocok, fallback ke nama asli). **Bukan bug fungsional**, hanya inkonsistensi dokumentasi di notebook eksplorasi — tidak memblokir Milestone 1.2, dicatat untuk kelengkapan.
 
@@ -206,3 +207,54 @@ Setiap item merujuk temuan sumbernya. Tidak diputuskan sepihak di sini — didaf
 **G.8 — `imbalanced-learn` di-install di `tccp-preprocessing-v2.ipynb` tapi tidak dipakai di situ.** *(Sumber: `tccp-preprocessing-v2.ipynb` cell 2 install `imbalanced-learn`, tapi SMOTE baru benar-benar dipakai di `tccp-modeling-baseline-v2.ipynb`/`tccp-hyperparameter-tuning.ipynb`.)* Kemungkinan sisa dari template/versi sebelumnya. Tidak berdampak (install idempotent, tidak ada efek samping), dicatat untuk kelengkapan.
 
 **G.9 — Dua objek "voting ensemble" berbeda dengan nama sama di dua notebook.** *(Sumber: Bagian D.)* `tccp-modeling-baseline-v2.ipynb` menghasilkan `voting_ensemble__<balance>.joblib` (XGB+LGBM+**RandomForest**, equal-weight) — berbeda dari `tuned_voting_ensemble.joblib` di `tccp-hyperparameter-tuning.ipynb` (LGBM_cw+XGB_cw+XGB_smote, weighted `[5,3,1]`). **Yang jadi `model_final.joblib` adalah versi tuning**, bukan baseline. Tidak memblokir kerja (sudah jelas mana yang final), dicatat agar tidak tertukar saat Milestone 1.5 (inference service package) merujuk model.
+
+**G.10 — Dua konvensi skema berbeda untuk "data mentah" di Supabase: `telco_customers_source` (PascalCase, statis) vs `telco_customers_synthetic` (snake_case, near-real-time, saat ini kosong).** *(Sumber: Bagian H.)* Kedua tabel merepresentasikan pelanggan dengan 21 atribut bisnis yang sama persis secara semantik, tapi nama kolom berbeda konvensi total (`TotalCharges` vs `total_charges`, `MultipleLines` vs `multiple_lines`, dst) dan `telco_customers_synthetic` punya kolom tambahan (`synthetic_id`, `generation_id`, `generated_at`) yang tidak ada di `telco_customers_source` (yang punya `id`, `imported_at`). **Pertanyaan kritis untuk Milestone 1.3 dan 1.6:** begitu data generator diaktifkan, apakah pipeline production membaca dari `telco_customers_source` (statis, tidak bertambah), dari `telco_customers_synthetic` (bertumbuh near-real-time), atau UNION keduanya? Modul transformasi Milestone 1.2 perlu tahu konvensi nama kolom mana yang jadi kontrak resminya — atau perlu lapisan normalisasi nama kolom di titik masuk pipeline. **Wajib dikonfirmasi sebelum Milestone 1.3 mengunci skema data mentah.**
+
+---
+
+## H. Verifikasi Sumber Data Production (Supabase)
+
+**Metode:** Koneksi langsung read-only ke Supabase Postgres (`SUPABASE_DB_URL` dari `.env`, tidak pernah dicetak ke log/chat) via `psycopg2`, query terhadap `information_schema` + sampel data. Dijalankan 2026-08-11, setelah user mengonfirmasi data training sudah dimuat ke Supabase.
+
+### H.1 Inventaris tabel
+
+Seluruh `public` schema (dan seluruh schema non-sistem lain — dicek eksplisit, tidak ada yang terlewat) hanya berisi **3 tabel**:
+
+| Tabel | Baris | Peran |
+|---|---|---|
+| `telco_customers_source` | 594.194 | Bulk load satu-kali dari dataset Kaggle (identik dengan yang diaudit Bagian A-C) |
+| `telco_customers_synthetic` | 0 | Tabel tujuan data generator near-real-time — **belum diaktifkan** (dikonfirmasi user), skema sudah ada tapi kosong |
+| `synthetic_generation_runs` | 0 | Log/metadata tiap batch generasi data sintetis (belum pernah jalan) |
+
+**Tidak ada tabel lain** (log kejadian, riwayat transaksi, tabel agregat, dsb.) di seluruh project — bukti langsung yang memperkuat G.3 (Bagian C): tidak ada sumber data apa pun di Supabase saat ini yang bisa dipakai untuk menghitung fitur historis/agregat, bahkan seandainya diinginkan.
+
+### H.2 `telco_customers_source` — verifikasi byte-identik dengan data training
+
+- **Skema:** 21 kolom bisnis dengan nama **persis sama** (termasuk casing: `SeniorCitizen`, `PhoneService`, `TotalCharges`, dst — quoted identifier PascalCase) seperti yang diaudit Bagian A, ditambah `id` (bigint, PK) dan `imported_at` (timestamptz, NOT NULL, default `now()`).
+- **Row count:** 594.194 — cocok persis dengan Bagian A.
+- **Sampel 3 baris pertama** (`ORDER BY id LIMIT 3`) **cocok persis, nilai per nilai**, dengan `df_raw.head(3)` yang tercetak di `tccp-preprocessing-v2.ipynb` cell 17 (mis. baris `id=0`: Male, SeniorCitizen=0, Partner=Yes, tenure=29, MonthlyCharges=60.10, TotalCharges=1653.85, Churn=No — identik).
+- **Distribusi `Churn`:** No=460.377, Yes=133.817 — identik dengan Bagian A.
+- **0 NULL** di `TotalCharges`/`Churn`, **0 id duplikat**, `id` range 0-594.193 (594.194 nilai unik, kontinu).
+- **`imported_at` — 1 nilai unik untuk seluruh 594.194 baris** (`2026-08-08 06:56:20 UTC`) → dikonfirmasi ini adalah bulk-import satu kali (bukan streaming bertahap). Kolom ini murni metadata audit-load, bukan fitur bisnis — konsisten dengan perlakuannya di Bagian A/C (tidak termasuk salah satu dari 21 kolom mentah).
+
+**Kesimpulan H.2:** `telco_customers_source` adalah salinan **byte-identik** dari dataset yang diaudit Bagian A-G. G.1 terjawab tuntas.
+
+### H.3 `telco_customers_synthetic` — skema tujuan generator (belum aktif)
+
+- **0 baris** — dikonfirmasi kosong, sesuai pernyataan user bahwa generator sengaja belum diaktifkan.
+- **Skema snake_case**, BUKAN PascalCase seperti `telco_customers_source`: `gender`, `senior_citizen`, `partner`, `dependents`, `tenure`, `phone_service`, `multiple_lines`, `internet_service`, `online_security`, `online_backup`, `device_protection`, `tech_support`, `streaming_tv`, `streaming_movies`, `contract`, `paperless_billing`, `payment_method`, `monthly_charges`, `total_charges`, `churn` — 20 kolom bisnis (identik secara semantik dengan Bagian A minus `gender` yang tetap ada di sini meski di-drop saat preprocessing).
+- **Kolom tambahan:** `synthetic_id` (UUID, PK), `generation_id` (UUID, FK → `synthetic_generation_runs.generation_id`), `generated_at` (timestamptz). Setiap baris adalah entitas pelanggan sintetis baru (bukan update in-place ke baris yang sudah ada) — pola ini konsisten dengan "generate baris baru", bukan "perbarui riwayat pelanggan yang sama".
+- **Seluruh kolom bisnis NOT NULL** (lebih ketat dari `telco_customers_source` yang nullable meski faktanya tidak pernah null).
+- **CHECK constraint sudah tertanam di skema:** `churn IN ('Yes','No')`, `monthly_charges > 0`, `senior_citizen IN (0,1)`, `tenure BETWEEN 1 AND 72`, `total_charges >= 0`. Ini relevan langsung untuk Milestone 1.3 (skema/validasi) — sebagian besar aturan validasi rentang nilai sudah didesain di level database, bisa jadi rujukan awal (bukan dianggap final tanpa cross-check ke Milestone 1.3).
+
+### H.4 `synthetic_generation_runs` — metadata generator
+
+- **0 baris** (belum pernah dijalankan).
+- Skema: `generation_id` (UUID PK), `requested_count` (CHECK 1-100.000), `inserted_count` (default 0), `seed` (bigint, nullable — untuk reproducibility), `status` (CHECK hanya `'completed'` atau `'failed'` — tidak ada status `'pending'`/`'running'` di constraint, mengindikasikan baris hanya ditulis setelah proses selesai/gagal, bukan saat mulai), `created_at`, `completed_at`.
+- Relevan untuk Milestone 3.5/3.12 (monitoring pipeline health) kelak jika generator diaktifkan — tabel ini sudah didesain untuk observability dasar dari sisi generator.
+
+### H.5 Dampak terhadap Bagian G
+
+- **G.1 → TERJAWAB.** Lihat H.2.
+- **G.3 → diperkuat, belum 100% tertutup.** Lihat H.1 (tidak ada tabel historis apa pun di Supabase) dan catatan sisa di G.3 (apakah baris di-update in-place atau selalu snapshot baru — tidak tersimpulkan dari skema tabel saja).
+- **G.10 (baru) → dua konvensi skema (`telco_customers_source` vs `telco_customers_synthetic`) perlu diputuskan mana yang jadi kontrak resmi Milestone 1.3, sebelum modul transformasi Milestone 1.2 dikunci.**

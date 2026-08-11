@@ -57,3 +57,11 @@ User mengoreksi struktur file dan menambah konteks baru setelah milestone ditutu
 3. **Akses Supabase** — ditanyakan ke user cara terima kredensial (`AskUserQuestion`: taruh di `.env.local` / paste di chat / user jalankan query sendiri). User memilih: taruh kredensial di `.env` (bukan `.env.local`), minta dibuatkan `.env.example` sebagai template.
 4. Path referensi di `logs.md` (file ini) dan `report.md` diperbarui mengikuti lokasi baru. `decisions.md` ditambah 1 keputusan baru (#5) mencatat konfirmasi sumber data Supabase.
 5. **Belum dilakukan:** membaca skema/data sungguhan di Supabase untuk memverifikasi G.1 (kecocokan skema) dan G.3 (apakah kolom seperti `tenure` benar current-state siap pakai) secara empiris — menunggu user mengisi `.env`.
+
+## Verifikasi Supabase (setelah user mengisi `.env`)
+
+- Dicek `psycopg2` sudah terpasang di environment lokal (`python -c "import psycopg2"` → OK) — tidak perlu instalasi baru.
+- Script sekali-pakai ditulis ke scratchpad (`inspect_supabase.py`, `inspect_schema.py`, `inspect_sample.py`, `inspect_constraints.py`) — baca `.env` manual (parser sendiri, tanpa dependency tambahan), koneksi via `SUPABASE_DB_URL`, `connect_timeout=15`. Kredensial tidak pernah dicetak ke stdout di skrip manapun.
+- **Temuan:** hanya 3 tabel di seluruh project (`telco_customers_source` 594.194 baris, `telco_customers_synthetic` 0 baris, `synthetic_generation_runs` 0 baris). `telco_customers_source` dikonfirmasi byte-identik dengan data training (skema, row count, distribusi `Churn`, 3 baris sampel pertama cocok persis dengan `df_raw.head(3)` di `tccp-preprocessing-v2.ipynb`, `imported_at` seragam 1 timestamp → bulk-load sekali). `telco_customers_synthetic` (target generator, belum aktif) punya skema snake_case berbeda dari `telco_customers_source` yang PascalCase — temuan baru, dicatat sebagai G.10.
+- `docs/03-notebook-audit/notebook-audit.md` diperbarui: status G.1 → TERJAWAB, G.3 → diperkuat (belum 100% tertutup), G.10 ditambahkan, Bagian H (Verifikasi Sumber Data Production) ditambahkan berisi bukti lengkap.
+- `docs/keputusan-tertunda.md` dibuat (baru, backlog project-wide pertama) — KT-1 (tabel mana jadi kontrak resmi), KT-2 (update in-place vs snapshot baru), KT-3 (versi library, dipindah dari catatan G.2 sebelumnya) — sengaja TIDAK diputuskan di Milestone 1.1 karena bukan wewenangnya.

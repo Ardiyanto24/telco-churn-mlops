@@ -25,14 +25,16 @@ Lihat [`decisions.md`](./decisions.md) — 4 keputusan: (1) sumber primer vs sek
 
 ## Keterbatasan dan Item Terbuka
 
-Sembilan ambiguitas didaftarkan di `docs/03-notebook-audit/notebook-audit.md` Bagian G, dua di antaranya **material**:
+Sepuluh ambiguitas didaftarkan di `docs/03-notebook-audit/notebook-audit.md` Bagian G (G.10 ditambahkan setelah verifikasi Supabase — lihat Bagian H dokumen yang sama).
 
-- **G.1 — terjawab sebagian pasca-penutupan.** User mengonfirmasi: data memang dari Kaggle, tapi sudah diunduh dan ditaruh di Supabase (PostgreSQL) — itulah sumber data production sesungguhnya (lihat `decisions.md` #5). User juga sudah membangun data generator near-real-time bertopologi sama, sengaja belum diaktifkan. **Belum terverifikasi:** kecocokan skema tabel Supabase terhadap skema training (Bagian A `notebook-audit.md`) secara empiris — baru pernyataan user, belum dibuktikan lewat pembacaan langsung.
-- **G.3 — masih terbuka.** Seluruh fitur terklasifikasi INSTANT berdasarkan notebook training (snapshot, bukan log kejadian). Belum dikonfirmasi apakah asumsi ini tetap berlaku di skema Supabase production (mis. apakah `tenure` tersimpan sebagai field current-state siap pakai). **Gap dengan dampak arsitektural terbesar** — menentukan apakah Milestone 2.2 (desain feature store, Orang #2) punya pekerjaan substansial.
+- **G.1 — TERJAWAB.** Verifikasi langsung ke Supabase (query `psycopg2` read-only) membuktikan `telco_customers_source` byte-identik dengan data training: row count sama (594.194), distribusi `Churn` sama, 3 baris sampel pertama cocok persis dengan output notebook. Sumber data production = Supabase, bukan Kaggle langsung.
+- **G.3 — diperkuat, belum 100% tertutup.** Terbukti hanya ada 3 tabel di seluruh project Supabase, tidak ada satu pun tabel log/riwayat kejadian — memperkuat klasifikasi INSTANT-semua. Yang belum terjawab: apakah baris pelanggan akan di-update in-place seiring waktu atau selalu snapshot baru (generator belum pernah dijalankan, belum bisa diobservasi). Dicatat sebagai KT-2 di `docs/keputusan-tertunda.md`.
+- **G.10 — baru, material.** `telco_customers_source` (PascalCase, statis) dan `telco_customers_synthetic` (snake_case, target generator, saat ini kosong) punya konvensi nama kolom berbeda untuk data yang secara semantik sama. Milestone 1.3 perlu memutuskan tabel/konvensi mana yang jadi kontrak resmi. Dicatat sebagai KT-1 di `docs/keputusan-tertunda.md` — **sengaja tidak diputuskan di Milestone 1.1** karena bukan wewenangnya.
 
-Ketujuh ambiguitas sisanya (G.2, G.4-G.9) berdampak lebih kecil/administratif dan tidak memblokir dimulainya Milestone 1.2.
+Tujuh ambiguitas sisanya (G.2, G.4-G.9) berdampak lebih kecil/administratif dan tidak memblokir dimulainya Milestone 1.2.
 
 ## Follow-up
 
-- **Verifikasi G.1/G.3 terhadap Supabase** — user akan mengisi kredensial read-only di `.env` (template `.env.example` disediakan); begitu tersedia, baca skema tabel + sampel data Supabase dan bandingkan langsung terhadap Bagian A/C `notebook-audit.md`. Ini idealnya dilakukan sebelum Milestone 1.6 (kontrak skema sumber data) dan sebelum Milestone 2.2 (desain feature store) dimulai.
-- G.2 (versi library) perlu dijawab sebelum Milestone 1.2 mengunci `requirements.txt`/`pyproject.toml` secara final — sementara ini Milestone 1.2 bisa mulai dengan versi library terkini yang kompatibel dan menandai sebagai provisional sampai DS mengonfirmasi.
+- G.1 dan G.3 sudah diverifikasi terhadap Supabase (lihat Bagian H `notebook-audit.md`) — tidak ada follow-up tersisa untuk keduanya di lingkup Milestone 1.1.
+- **KT-1 (G.10)** dan **KT-2 (sisa G.3)** perlu diputuskan pemilik Milestone 1.3/1.6 sebelum kontrak skema data mentah dikunci — lihat `docs/keputusan-tertunda.md`.
+- **KT-3 (G.2, versi library)** perlu dijawab sebelum Milestone 1.2 mengunci `requirements.txt`/`pyproject.toml` secara final — sementara ini Milestone 1.2 bisa mulai dengan versi library terkini yang kompatibel dan menandai sebagai provisional sampai DS mengonfirmasi.
