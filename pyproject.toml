@@ -32,6 +32,16 @@ dependencies = [
     # (pyfunc, registry) tanpa dependency pandas/numpy/scikit-learn sama sekali.
     # Lihat milestones/1.5-inference-service/decisions.md Keputusan #8.
     "mlflow-skinny==3.15.1",
+    # lightgbm/xgboost: model_final.joblib adalah VotingClassifier berisi
+    # LGBMClassifier + 2x XGBClassifier (baru terungkap M1.5 Checkpoint 2 --
+    # M1.2-1.4 tidak pernah benar-benar memuat model, cuma preprocessor).
+    # Sudah diketahui sejak M1.1 audit sebagai dependency training yang versinya
+    # "Tidak ditemukan" di manapun (notebook-audit.md Bagian F, KT-3) -- PROVISIONAL
+    # sama seperti pandas/numpy, dikunci ke versi yang terbukti jalan memuat
+    # model_final.joblib di environment ini, bukan versi training asli DS.
+    # Lihat milestones/1.5-inference-service/decisions.md Keputusan #9.
+    "lightgbm==4.7.0",
+    "xgboost==3.4.0",
 ]
 
 [project.optional-dependencies]

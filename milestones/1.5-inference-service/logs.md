@@ -28,3 +28,16 @@
 - Smoke test manual `load_fitted_pipeline()` dipanggil berdiri sendiri (tanpa lewat test) pada 1 baris fixture (id=0, `notebook-audit.md` H.2) → `(1, 29)` shape, `tc_residual` ada -- bukti fungsi produksi bekerja independen dari harness test.
 
 **File disentuh:** `src/churn_prediction/transform/_notebook_reference.py` (dipindah dari `tests/transform/`), `src/churn_prediction/transform/artifact_loader.py` (baru), `tests/transform/test_parity_real_artifact.py` (refactor, -47 baris duplikasi).
+
+## Checkpoint 2 — Bundle pyfunc + registrasi versi 1
+
+Dibuat `inference/pyfunc_model.py` (`ChurnPyfuncModel`) dan `inference/registry.py` (`build_bundle`, `register_model`, `load_model_by_version`).
+
+**Temuan signifikan (dicatat sebagai Keputusan #9 di `decisions.md`, update juga di `docs/keputusan-tertunda.md` KT-3):** `joblib.load('artifacs/model/model_final.joblib')` gagal `ModuleNotFoundError: No module named 'lightgbm'` -- ini panggilan PERTAMA di seluruh proyek yang benar-benar memuat model (M1.2-1.4 cuma pernah memuat `preprocessor.joblib`). Diperiksa: `model_final.joblib` adalah `VotingClassifier` dengan `named_estimators_` = `lightgbm_class_weight`, `xgboost_class_weight`, `xgboost_smote` -- konsisten `notebook-audit.md` Bagian E (baseline+tuning notebook memang pakai XGBoost+LightGBM+RandomForest). Diinstal `lightgbm==4.7.0`+`xgboost==3.4.0`, ditambahkan ke `pyproject.toml` sebagai PROVISIONAL (pola sama pandas/numpy M1.2). Beda dari kasus scikit-learn (M1.2), tidak ada `InconsistentVersionWarning` bernomor versi eksplisit -- cuma `UserWarning` generik xgboost yang mengonfirmasi ADA mismatch versi tanpa menyebut versi persis. Diverifikasi manual: `predict_proba()` tetap menghasilkan output valid (non-NaN, `[[0.9455, 0.0545]]` untuk baris id=0) meski warning muncul -- aman dipakai.
+
+**Verifikasi:**
+- `pytest tests/inference/test_pyfunc_model.py -v` → **2 passed**: (1) `predict()` mengembalikan kolom `churn_probability`+`churn_label` sesuai threshold DARI BUNDLE; (2) dua bundle dengan threshold berbeda (0.9999 vs 0.0001) pada model+input SAMA menghasilkan probability identik tapi label total berbeda (0 vs 4 dari 4 baris) -- bukti threshold benar-benar dibaca dari bundle, bukan hardcode.
+- `pytest tests/inference/test_registry.py -v` → **2 passed**: `build_bundle()` mengembalikan struktur benar; round-trip `register_model()`→`load_model_by_version("1")`→`predict()` pada tracking URI SQLite terisolasi (`tmp_path`, bukan `mlruns.db` bersama -- supaya nomor versi antar test run bisa diprediksi) menghasilkan versi "1" dan prediksi konsisten dengan threshold 0.6238.
+- `pytest tests/ -q` → **127 passed**.
+
+**File disentuh:** `src/churn_prediction/inference/{pyfunc_model,registry}.py` (baru), `tests/inference/{test_pyfunc_model,test_registry}.py` (baru), `pyproject.toml` (tambah lightgbm/xgboost), `milestones/1.5-inference-service/decisions.md` (Keputusan #9), `docs/keputusan-tertunda.md` (update KT-3).
