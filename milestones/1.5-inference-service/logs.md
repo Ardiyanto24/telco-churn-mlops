@@ -55,3 +55,15 @@ Test: registrasi bundle sungguhan (threshold 0.6238) sebagai versi 1, bundle uji
 - `pytest tests/ -q` → **128 passed**.
 
 **File disentuh:** `tests/inference/test_registry.py` (tambah 1 test + fixture `_band_row_df`).
+
+## Checkpoint 4 — predict() publik + validasi skema
+
+Dibuat `inference/predictor.py` -- `predict(df, model_version, tracking_uri=None)`. Validasi `RawDataSchema.validate(df)` dijalankan DI DALAM fungsi (Keputusan #4) sebelum `registry.load_model_by_version()` dipanggil sama sekali.
+
+**Verifikasi (`tests/inference/test_predictor.py`, 7 test):**
+- Input valid → DataFrame 4 kolom persis (`churn_probability`, `churn_label`, `model_version`, `predicted_at`), `predicted_at` berhasil di-parse balik sebagai timestamp ISO8601.
+- Input invalid (`tenure=200`, `tenure=0`, `monthly_charges=-5.0`, `senior_citizen=2`, `contract="Weekly"`, kolom `tenure` hilang -- 6 kasus pelanggaran berbeda) → seluruhnya raise `pandera.errors.SchemaError`/`SchemaErrors` SEBELUM `registry.load_model_by_version()` sempat dipanggil sama sekali -- dibuktikan lewat `unittest.mock.patch.object` + `spy_load.assert_not_called()` (pola sama M1.4 `test_schema_transform_integration.py`), bukan cuma diasumsikan dari urutan baris kode.
+
+`pytest tests/ -q` → **135 passed**.
+
+**File disentuh:** `src/churn_prediction/inference/predictor.py` (baru), `tests/inference/test_predictor.py` (baru).
