@@ -45,4 +45,4 @@
 
 ## Commit
 
-- Commit checkpoint tunggal (Milestone 1.1 dieksekusi dalam satu sesi kerja tanpa jeda antar-checkpoint yang butuh commit terpisah) — hash dicatat setelah commit dibuat oleh user/di langkah berikutnya sesi ini.
+- Commit checkpoint tunggal (Milestone 1.1 dieksekusi dalam satu sesi kerja tanpa jeda antar-checkpoint yang butuh commit terpisah) — `c9dd758` "feat(milestone-1.1): audit notebook Data Scientist untuk inventarisasi fitur". Push tidak dilakukan — menunggu instruksi eksplisit user sesuai `CLAUDE.md`.
