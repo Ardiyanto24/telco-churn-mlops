@@ -13,3 +13,5 @@ __pycache__/
 build/
 .coverage
 htmlcov/
+mlruns/
+mlruns.db
