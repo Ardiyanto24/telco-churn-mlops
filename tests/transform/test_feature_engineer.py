@@ -97,3 +97,49 @@ def test_service_count_counts_only_yes():
     out = FeatureEngineer().fit_transform(df)
     assert out["service_count"].iloc[0] == 3
     assert out["has_any_addon"].iloc[0] == 1
+
+
+def test_get_feature_names_out_is_identity_passthrough():
+    # M1.4 Task 2 (audit Checkpoint 1, Temuan 1): 0% coverage sebelumnya.
+    names = ["a", "b"]
+    assert FeatureEngineer().get_feature_names_out(names) == names
+
+
+# -- M1.4 Task 3 (audit Checkpoint 1, Temuan 2): 6 cabang defensif "kolom
+# sumber hilang" -- sebelumnya SELALU True di seluruh test di atas karena
+# _base_row() selalu lengkap. Di sini kolom benar-benar DIHAPUS dari
+# DataFrame (bukan cuma bernilai kosong).
+
+def test_tc_residual_fallback_zero_when_source_columns_missing():
+    df = pd.DataFrame([_base_row()]).drop(columns=["total_charges"])
+    out = FeatureEngineer().fit_transform(df)
+    assert out["tc_residual"].iloc[0] == 0.0
+
+
+def test_monthly_to_total_ratio_not_created_when_source_columns_missing():
+    df = pd.DataFrame([_base_row()]).drop(columns=["total_charges"])
+    out = FeatureEngineer().fit_transform(df)
+    assert "monthly_to_total_ratio" not in out.columns
+
+
+def test_tenure_group_not_created_when_tenure_missing():
+    df = pd.DataFrame([_base_row()]).drop(columns=["tenure"])
+    out = FeatureEngineer().fit_transform(df)
+    assert "tenure_group" not in out.columns
+
+
+def test_is_auto_payment_not_created_when_payment_method_missing():
+    df = pd.DataFrame([_base_row()]).drop(columns=["payment_method"])
+    out = FeatureEngineer().fit_transform(df)
+    assert "is_auto_payment" not in out.columns
+
+
+def test_service_count_and_has_any_addon_not_created_when_no_addon_columns():
+    addon_cols = [
+        "online_security", "online_backup", "device_protection",
+        "tech_support", "streaming_tv", "streaming_movies",
+    ]
+    df = pd.DataFrame([_base_row()]).drop(columns=addon_cols)
+    out = FeatureEngineer().fit_transform(df)
+    assert "service_count" not in out.columns
+    assert "has_any_addon" not in out.columns

@@ -52,3 +52,14 @@ Method publik (bagian kontrak sklearn-compatible, disebut eksplisit di setiap do
 4. **Task 5** — test integrasi baru `tests/test_schema_transform_integration.py` (Temuan 4).
 
 Tidak ditemukan gap pada `schema/*.py` (branch coverage 100% di ketiganya) — audit Checkpoint 1 M1.3 sudah cukup ketat untuk modul itu.
+- Commit: `52cae53` "feat(milestone-1.4): checkpoint 1 - audit coverage dari nol".
+
+## Checkpoint 2 — Isi gap yang ditemukan Checkpoint 1
+
+- **Task 2** — 7 test `get_feature_names_out()`/`get_feature_names()` ditambahkan (satu per class + pipeline), tersebar ke file test masing-masing yang sudah ada.
+- **Task 3** — 5 test baru `test_feature_engineer.py`: kolom sumber (`total_charges`, `tenure`, `payment_method`, 6 kolom addon) BENAR-BENAR DIHAPUS dari DataFrame (bukan cuma null) — konfirmasi fitur turunan terkait tidak dibuat (bukan error, bukan fallback keliru).
+- **Task 4** — 2 test baru: `OHEWrapper`/`ScalerWrapper` dengan DataFrame yang sama sekali tidak punya kolom target — konfirmasi keduanya no-op bersih (`pd.testing.assert_frame_equal` input==output).
+- **Task 5** — `tests/test_schema_transform_integration.py` (baru, 6 test): `RawDataSchema` lalu `PreprocessingPipeline` sebagai satu rangkaian.
+  - **Temuan nyata saat menulis test "data valid" (bukan bug, karakteristik sklearn yang benar):** percobaan pertama pakai 1 baris untuk `fit_transform()` → output cuma 19 kolom (bukan 29) karena `OneHotEncoder(drop='first')` pada 1 kategori/kolom menghapus satu-satunya kategori itu, 0 dummy dihasilkan. Percobaan kedua (3 baris, kategori tidak lengkap) → 27 kolom (2 kategori `tenure_group`/`payment_method` tidak pernah muncul). Diperbaiki dengan fixture 4-baris yang mencakup SEMUA kategori (pola sama `test_pipeline.py`) → 29 kolom penuh. Dicatat sebagai komentar di kode test supaya tidak membingungkan orang lain nanti.
+  - Penolakan data invalid dibuktikan dengan `unittest.mock.patch.object` + `spy.assert_not_called()` pada `PreprocessingPipeline.fit_transform` — bukan cuma diasumsikan dari urutan baris kode, tapi dibuktikan method itu benar-benar tidak pernah dipanggil (4 kasus pelanggaran berbeda, semua terbukti).
+- Full suite: **123/123 lulus** (21 test baru sejak audit Checkpoint 1). Branch coverage: **100%** (naik dari 91%).

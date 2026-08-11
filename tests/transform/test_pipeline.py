@@ -96,6 +96,21 @@ def test_fit_transform_produces_29_columns_matching_audit():
     assert not out.isnull().any().any()
 
 
+def test_get_feature_names_after_fit_transform():
+    # M1.4 Task 2 (audit Checkpoint 1, Temuan 1): method publik ini tidak
+    # pernah dipanggil test manapun sebelumnya -- 0% coverage, walau disebut
+    # eksplisit di docstring class sebagai cara mengambil nama fitur output.
+    df = _sample_raw_df()
+    pipeline = PreprocessingPipeline()
+    pipeline.fit_transform(df)
+    assert set(pipeline.get_feature_names()) == EXPECTED_29_COLUMNS
+
+
+def test_get_feature_names_before_fit_returns_empty_list():
+    pipeline = PreprocessingPipeline()
+    assert pipeline.get_feature_names() == []
+
+
 def test_transform_after_fit_on_new_data():
     df = _sample_raw_df()
     pipeline = PreprocessingPipeline()

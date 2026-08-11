@@ -24,3 +24,10 @@ def test_default_uses_constants_binary_cols():
     out = BinaryEncoder().fit_transform(df)
     for c in constants.BINARY_COLS:
         assert out[c].iloc[0] == 1
+
+
+def test_get_feature_names_out_is_identity_passthrough():
+    # M1.4 Task 2 (audit Checkpoint 1, Temuan 1): 0% coverage sebelumnya.
+    enc = BinaryEncoder()
+    names = ["partner", "dependents"]
+    assert enc.get_feature_names_out(names) == names

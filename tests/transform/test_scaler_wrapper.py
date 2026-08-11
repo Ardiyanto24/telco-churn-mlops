@@ -34,3 +34,25 @@ def test_non_target_columns_untouched():
     scaler = ScalerWrapper()
     out = scaler.fit_transform(df)
     assert out["is_auto_payment"].tolist() == [1, 0, 1]
+
+
+def test_get_feature_names_out_is_identity_passthrough():
+    # M1.4 Task 2 (audit Checkpoint 1, Temuan 1): 0% coverage sebelumnya.
+    scaler = ScalerWrapper()
+    names = ["tenure", "monthly_charges"]
+    assert scaler.get_feature_names_out(names) == names
+
+
+def test_no_target_columns_present_is_noop():
+    # M1.4 Task 4 (audit Checkpoint 1, Temuan 3): skenario "tidak ada kolom
+    # target sama sekali di input" -- cols_present_ kosong -- belum pernah diuji
+    # (37->39, 43->45 di scaler_wrapper.py).
+    df = pd.DataFrame({"is_auto_payment": [1, 0, 1], "service_count": [2, 0, 5]})
+    scaler = ScalerWrapper()
+    out = scaler.fit_transform(df)
+    assert scaler.cols_present_ == []
+    pd.testing.assert_frame_equal(out, df)  # tidak ada perubahan sama sekali
+
+    # transform() terpisah pada data lain juga harus no-op yang sama
+    out2 = scaler.transform(df)
+    pd.testing.assert_frame_equal(out2, df)

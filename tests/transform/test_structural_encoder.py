@@ -37,3 +37,11 @@ def test_all_structural_cols_from_constants():
     out = enc.fit_transform(df)
     for c in constants.STRUCTURAL_COLS:
         assert out[c].iloc[0] == 1
+
+
+def test_get_feature_names_out_is_identity_passthrough():
+    # M1.4 Task 2 (audit Checkpoint 1, Temuan 1): method ini tidak pernah
+    # dipanggil test manapun sebelumnya -- 0% coverage.
+    enc = StructuralEncoder(cols=["online_security"])
+    names = ["a", "b", "c"]
+    assert enc.get_feature_names_out(names) == names

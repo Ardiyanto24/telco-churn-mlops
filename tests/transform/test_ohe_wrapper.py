@@ -74,3 +74,25 @@ def test_fit_hanya_dipanggil_sekali_lalu_transform_data_lain():
     out = enc.transform(other)
     assert out.shape[0] == 1
     assert not out.isnull().any().any()
+
+
+def test_get_feature_names_out_is_identity_passthrough():
+    # M1.4 Task 2 (audit Checkpoint 1, Temuan 1): 0% coverage sebelumnya.
+    enc, _ = _fit_sample()
+    names = ["a", "b"]
+    assert enc.get_feature_names_out(names) == names
+
+
+def test_no_ohe_columns_present_is_noop():
+    # M1.4 Task 4 (audit Checkpoint 1, Temuan 3): skenario "tidak ada kolom
+    # OHE sama sekali di input" -- cols_present_ kosong -- belum pernah diuji
+    # (baris 56 dan 62 di ohe_wrapper.py).
+    df = pd.DataFrame({"tenure": [5, 10], "monthly_charges": [50.0, 60.0]})
+    enc = OHEWrapper()
+    out = enc.fit_transform(df)
+    assert enc.cols_present_ == []
+    assert enc.ohe_feature_names_ == []
+    pd.testing.assert_frame_equal(out, df)  # tidak ada perubahan sama sekali
+
+    out2 = enc.transform(df)
+    pd.testing.assert_frame_equal(out2, df)

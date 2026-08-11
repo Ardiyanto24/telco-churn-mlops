@@ -25,3 +25,13 @@ def test_default_uses_constants_drop_cols():
     assert "gender" not in out.columns
     assert "total_charges" not in out.columns
     assert "tenure" in out.columns
+
+
+def test_get_feature_names_out_filters_dropped_columns():
+    # M1.4 Task 2 (audit Checkpoint 1, Temuan 1): 0% coverage sebelumnya,
+    # kedua cabang (input_features=None dan normal) tidak pernah dipanggil.
+    dropper = ColumnDropper(cols_to_drop=["gender", "total_charges"])
+    dropper.fit(pd.DataFrame({"gender": ["Male"], "total_charges": [1.0], "tenure": [5]}))
+
+    assert dropper.get_feature_names_out(None) is None
+    assert dropper.get_feature_names_out(["gender", "total_charges", "tenure"]) == ["tenure"]
