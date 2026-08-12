@@ -44,3 +44,19 @@
 - Query `mlflow.model_versions` → baris `('churn_prediction_model', 1, 'None')` terkonfirmasi ada.
 - Query `mlflow.experiments` → experiment `churn_prediction_production` (id 1) tercatat dengan `artifact_location='s3://mlflow-artifacts/'`.
 - `boto3 list_objects_v2` ke bucket `mlflow-artifacts` → `bundle.joblib` (25.524.954 bytes) dan file model lain (`MLmodel`, `conda.yaml`, `python_model.pkl`, dst.) benar-benar ADA di Storage, bukan cuma metadata di Postgres.
+
+**Selesai, commit:** `070def8` (feat, task 7), `e06eaa9` (feat, task 8), `1b31178` (docs).
+
+## Checkpoint 3 — Konvensi "versi aktif" (alias) + loader baru
+
+**Task 9:** `set_active_alias()`/`load_active_model()` ditambah ke `churn_prediction.inference.registry` (`models:/{name}@{alias}`, lewat `mlflow.tracking.MlflowClient().set_registered_model_alias()`). `ACTIVE_ALIAS = "champion"` ditambah ke `constants.py`. `load_model_by_version()` lama TIDAK diubah/dihapus.
+
+**Task 10:** `scripts/promote_active_alias.py` ditulis (reusable, dipakai lagi saat promosi versi berikutnya/M2.8). Dijalankan: `python scripts/promote_active_alias.py 1` → alias `champion` → versi 1. **Verifikasi:** query `mlflow.registered_model_aliases` → baris `('churn_prediction_model', 'champion', 1)` terkonfirmasi.
+
+**Task 11:** 2 unit test baru ditambah ke `tests/inference/test_registry.py` (pola tracking URI SQLite terisolasi di `tmp_path`, sama seperti test M1.5): (1) round-trip alias vs versi eksplisit menghasilkan prediksi identik, (2) alias reassignment benar-benar version-aware (bukan cache) -- pola sama KK3 M1.5. **Verifikasi:** `pytest tests/inference/test_registry.py -v` → 5 passed. `pytest tests/ -q` → **138 passed** (136 lama + 2 baru), tidak ada regresi.
+
+**Task 12:** `docs/05-model-registry-contract/model-registry-contract.md` ditulis (nama model, backend direct-access, konvensi alias, cara load versi aktif, prosedur promosi/rollback).
+
+**Verifikasi tambahan (round-trip terhadap backend PRODUKSI sungguhan, bukan cuma test terisolasi):** `load_active_model()` vs `load_model_by_version("1")` pada sample data yang sama, dijalankan langsung terhadap `MLFLOW_TRACKING_URI` Postgres+Storage resmi → `churn_probability=0.054475`, `churn_label=0` untuk KEDUANYA, `DataFrame.equals()` True.
+
+**Selesai, commit:** `62da85b` (feat), `4b2eef6` (docs).
