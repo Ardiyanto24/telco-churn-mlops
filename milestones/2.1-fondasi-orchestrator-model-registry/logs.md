@@ -60,3 +60,29 @@
 **Verifikasi tambahan (round-trip terhadap backend PRODUKSI sungguhan, bukan cuma test terisolasi):** `load_active_model()` vs `load_model_by_version("1")` pada sample data yang sama, dijalankan langsung terhadap `MLFLOW_TRACKING_URI` Postgres+Storage resmi → `churn_probability=0.054475`, `churn_label=0` untuk KEDUANYA, `DataFrame.equals()` True.
 
 **Selesai, commit:** `62da85b` (feat), `4b2eef6` (docs).
+
+## Checkpoint 4 — Prefect Cloud: job terjadwal percobaan
+
+**Task 13:** `prefect==3.8.2` diinstal sebagai optional-dependency `[orchestration]` (bukan dependency inti `churn_prediction`). Login non-interaktif via `PREFECT_API_KEY` (env var, tanpa prompt) → `prefect cloud workspace ls` menemukan workspace `ardi/default` yang sudah ada milik user. Work pool baru `churn-mlops-managed-pool` (tipe `prefect:managed`) dibuat. `PREFECT_API_URL` ditambah ke `.env`/`.env.example` (dibaca dari `~/.prefect/profiles.toml` setelah `workspace set`).
+
+**Task 14:** `orchestration/flows/smoke_test.py` ditulis (flow+task minimal, tidak bergantung `churn_prediction`). **Verifikasi:** dijalankan lokal (`python orchestration/flows/smoke_test.py`) → sukses, run tercatat di Prefect Cloud (state Completed).
+
+**Push ke origin/main:** sebelum deploy, perlu kode ada di GitHub (Prefect Managed menarik kode via `flow.from_source()` dari repo). Konfirmasi eksplisit diminta ke user (aksi push) — dikonfirmasi. `git push origin main` → 9 commit ter-push (`30b00cc..63c977d`).
+
+**Task 15:** `orchestration/deploy_smoke_test.py` ditulis (`flow.from_source(REPO_URL).deploy(...)`, jadwal cron tiap 6 jam -- sekadar bukti, bukan jadwal produksi). Dijalankan → deployment `milestone-2-1-smoke-test/milestone-2-1-smoke-test-deployment` berhasil dibuat. Run manual dipicu (`prefect deployment run`) dan dipoll di background sampai status terminal.
+
+**Verifikasi (bukti log run sungguhan dari Prefect Cloud API, bukan asumsi):**
+```
+Running 1 deployment pull step(s)
+Executing deployment step: git_clone
+Deployment step 'git_clone' completed successfully
+All deployment steps completed successfully
+Beginning flow run 'gifted-hyrax' for flow 'milestone-2-1-smoke-test'
+Milestone 2.1 smoke test task berjalan pada 2026-08-12T12:39:51...
+Finished in state Completed()
+Smoke test flow selesai, checked in at 2026-08-12T12:39:51...
+Finished in state Completed()
+```
+`git_clone` di log membuktikan kode benar-benar ditarik dari GitHub dan dieksekusi di infrastruktur Prefect (Managed work pool) -- BUKAN dijalankan lokal. Flow run status akhir: `COMPLETED`.
+
+**Selesai, commit:** `63c977d` (feat, tasks 13-14), `75f9c0e` (feat, task 15).
