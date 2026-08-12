@@ -86,3 +86,14 @@ Finished in state Completed()
 `git_clone` di log membuktikan kode benar-benar ditarik dari GitHub dan dieksekusi di infrastruktur Prefect (Managed work pool) -- BUKAN dijalankan lokal. Flow run status akhir: `COMPLETED`.
 
 **Selesai, commit:** `63c977d` (feat, tasks 13-14), `75f9c0e` (feat, task 15).
+
+## Checkpoint 5 — Penutupan milestone
+
+**Task 16:** re-verifikasi 3 KK sumber end-to-end:
+- **KK1** (job terjadwal jalan): `prefect deployment ls` → deployment `milestone-2-1-smoke-test/milestone-2-1-smoke-test-deployment` masih ada dan terjadwal di `churn-mlops-managed-pool`.
+- **KK2** (round-trip model): sudah diverifikasi Checkpoint 3 (alias vs versi eksplisit identik, terhadap backend produksi sungguhan).
+- **KK3** (definisi versi aktif jelas tanpa ambiguitas): dokumen dikirim ke user, dikonfirmasi eksplisit lewat AskUserQuestion (peran "Orang #3" simulasi, pola sama M1.6) — **"Ya, jelas -- KK3 terpenuhi"**.
+
+`pytest tests/ -q` final → **138 passed**, tidak ada regresi dari awal sampai akhir milestone.
+
+**Task 17-19:** `report.md` ditulis, status `CLAUDE.md`/`AGENT.md` diperbarui, commit penutupan.
