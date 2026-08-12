@@ -53,12 +53,19 @@ dependencies = [
     # Lihat milestones/1.5-inference-service/decisions.md Keputusan #10.
     "sqlalchemy==2.0.52",
     "alembic==1.19.1",
+    # psycopg2-binary: pindah dari [dev] ke sini Milestone 2.1 -- MLFLOW_TRACKING_URI
+    # registry resmi memakai driver postgresql:// (direct-access ke Supabase, lihat
+    # milestones/2.1-fondasi-orchestrator-model-registry/decisions.md Keputusan #2),
+    # jadi ini sekarang dependency runtime (dipanggil dari flow Prefect), bukan cuma
+    # kebutuhan test integrasi seperti sebelumnya.
+    "psycopg2-binary==2.9.12",
+    # boto3: artifact store MLflow di Supabase Storage (S3-compatible) -- mlflow-skinny
+    # tidak bundling boto3, perlu ditambah eksplisit. Lihat Keputusan #3.
+    "boto3==1.43.69",
 ]
 
 [project.optional-dependencies]
-# psycopg2-binary hanya untuk test integrasi Checkpoint 5 (baca data real Supabase
-# demi verifikasi KK2) -- bukan dependency runtime modul transform itu sendiri.
-dev = ["pytest==9.1.1", "psycopg2-binary==2.9.12", "pytest-cov==7.1.0"]
+dev = ["pytest==9.1.1", "pytest-cov==7.1.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
