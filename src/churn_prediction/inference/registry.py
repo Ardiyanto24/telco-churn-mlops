@@ -1,13 +1,16 @@
 """Bangun bundle (preprocessor+model+threshold) dan registrasikan/muat dari
-MLflow Model Registry berdasarkan versi -- Milestone 1.5.
+MLflow Model Registry berdasarkan versi ATAU alias -- Milestone 1.5 (versi
+eksplisit) + Milestone 2.1 (alias "versi aktif").
 
 ``build_bundle()`` memanggil ulang mekanisme grafting M1.2
 (``churn_prediction.transform.artifact_loader``) -- lihat
 milestones/1.5-inference-service/decisions.md Keputusan #6.
 
-Registry di sini LOKAL/uji milik Milestone 1.5 (``constants.get_tracking_uri()``,
-default ``sqlite:///mlruns.db``) -- registrasi resmi "versi produksi awal" tetap
-Milestone 2.1, lihat Keputusan #1/#2/#7.
+``constants.get_tracking_uri()`` menunjuk ke registry resmi sejak Milestone 2.1
+(direct-access Postgres Supabase, TANPA proses `mlflow server`) -- default
+``sqlite:///mlruns.db`` (pola M1.5) hanya dipakai kalau env var
+``MLFLOW_TRACKING_URI`` tidak diset (mis. dev lokal tanpa akses Supabase). Lihat
+milestones/2.1-fondasi-orchestrator-model-registry/decisions.md Keputusan #2.
 """
 
 import tempfile
@@ -18,6 +21,7 @@ from typing import Optional
 import joblib
 import mlflow
 import mlflow.pyfunc
+import mlflow.tracking
 
 from ..transform.artifact_loader import DEFAULT_PREPROCESSOR_PATH, load_fitted_pipeline
 from . import constants
@@ -77,3 +81,24 @@ def load_model_by_version(version: str, tracking_uri: Optional[str] = None):
     statis, sesuai KK M1.5 (mekanisme pemuatan model berdasarkan versi)."""
     mlflow.set_tracking_uri(tracking_uri or constants.get_tracking_uri())
     return mlflow.pyfunc.load_model(f"models:/{constants.MODEL_NAME}/{version}")
+
+
+def set_active_alias(version: str, alias: str = constants.ACTIVE_ALIAS, tracking_uri: Optional[str] = None):
+    """Tandai ``version`` sebagai versi aktif lewat MLflow Model Registry Alias
+    (default ``champion``) -- konvensi versi aktif Milestone 2.1, dipakai
+    bersama batch DAG dan real-time API. Menggantikan Stage (deprecated di
+    MLflow). Lihat milestones/2.1-fondasi-orchestrator-model-registry/
+    decisions.md Keputusan #5.
+    """
+    mlflow.set_tracking_uri(tracking_uri or constants.get_tracking_uri())
+    client = mlflow.tracking.MlflowClient()
+    client.set_registered_model_alias(constants.MODEL_NAME, alias, version)
+
+
+def load_active_model(alias: str = constants.ACTIVE_ALIAS, tracking_uri: Optional[str] = None):
+    """Muat model yang ditandai ``alias`` (default ``champion``) -- mekanisme
+    pemuatan "versi aktif" TANPA hardcode nomor versi, pelengkap
+    ``load_model_by_version()`` (tetap berguna untuk pin ke versi eksplisit,
+    mis. verifikasi promosi Milestone 2.8)."""
+    mlflow.set_tracking_uri(tracking_uri or constants.get_tracking_uri())
+    return mlflow.pyfunc.load_model(f"models:/{constants.MODEL_NAME}@{alias}")

@@ -19,6 +19,12 @@ POSITIVE_CLASS_INDEX = 1
 
 MODEL_NAME = "churn_prediction_model"
 
+# Alias MLflow Model Registry yang menandai "versi aktif" -- konvensi Milestone
+# 2.1, dipakai bersama batch DAG dan real-time API (menggantikan Stage yang
+# deprecated). Lihat docs/05-model-registry-contract/model-registry-contract.md
+# dan milestones/2.1-fondasi-orchestrator-model-registry/decisions.md Keputusan #5.
+ACTIVE_ALIAS = "champion"
+
 DEFAULT_TRACKING_URI = "sqlite:///mlruns.db"
 
 

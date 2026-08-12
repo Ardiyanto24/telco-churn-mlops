@@ -114,3 +114,49 @@ def test_load_by_version_returns_version_appropriate_results(tmp_path):
     assert label_v1 == 0  # 0.566 < threshold versi 1 (0.6238)
     assert label_v2 == 1  # 0.566 >= threshold versi 2 (0.5)
     assert label_v1 != label_v2
+
+
+def test_load_active_model_matches_load_by_version_for_aliased_version(tmp_path):
+    """KK M2.1 -- round-trip via alias: load_active_model() (alias "champion")
+    dan load_model_by_version() untuk versi yang SAMA harus menghasilkan
+    prediksi identik pada sample yang sama."""
+    tracking_uri = _tracking_uri(tmp_path)
+    bundle = registry.build_bundle()
+    info = registry.register_model(bundle, tracking_uri=tracking_uri)
+
+    registry.set_active_alias(info.registered_model_version, alias="champion", tracking_uri=tracking_uri)
+
+    df = _sample_raw_df()
+    out_alias = registry.load_active_model(alias="champion", tracking_uri=tracking_uri).predict(df)
+    out_version = registry.load_model_by_version(
+        info.registered_model_version, tracking_uri=tracking_uri
+    ).predict(df)
+
+    pd.testing.assert_frame_equal(out_alias, out_version)
+
+
+def test_load_active_model_reflects_alias_reassignment(tmp_path):
+    """Alias bukan cache statis -- setelah alias "champion" dipindah dari versi 1
+    ke versi 2 (threshold berbeda), load_active_model() berikutnya harus
+    mengambil versi 2, bukan versi 1 yang lama (bukti mekanisme "versi aktif"
+    benar-benar version-aware seperti load_model_by_version() di KK3 M1.5)."""
+    tracking_uri = _tracking_uri(tmp_path)
+
+    bundle_v1 = registry.build_bundle(threshold=0.6238)
+    info_v1 = registry.register_model(bundle_v1, tracking_uri=tracking_uri)
+    bundle_v2 = registry.build_bundle(threshold=0.5)
+    info_v2 = registry.register_model(bundle_v2, tracking_uri=tracking_uri)
+
+    df = _band_row_df()
+
+    registry.set_active_alias(info_v1.registered_model_version, alias="champion", tracking_uri=tracking_uri)
+    out_v1_active = registry.load_active_model(alias="champion", tracking_uri=tracking_uri).predict(df)
+    label_when_v1_active = out_v1_active["churn_label"].iloc[0]
+
+    registry.set_active_alias(info_v2.registered_model_version, alias="champion", tracking_uri=tracking_uri)
+    out_v2_active = registry.load_active_model(alias="champion", tracking_uri=tracking_uri).predict(df)
+    label_when_v2_active = out_v2_active["churn_label"].iloc[0]
+
+    assert label_when_v1_active == 0  # 0.566 < threshold v1 (0.6238)
+    assert label_when_v2_active == 1  # 0.566 >= threshold v2 (0.5)
+    assert label_when_v1_active != label_when_v2_active
