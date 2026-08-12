@@ -30,6 +30,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from churn_prediction.schema.column_mapping import RAW_PASCAL_TO_SNAKE
 from churn_prediction.transform.artifact_loader import (
     load_fitted_pipeline,
     load_original_preprocessor,
@@ -64,28 +65,6 @@ pytestmark = pytest.mark.skipif(
     reason="butuh SUPABASE_DB_URL (.env) dan artifacs/proprocessor/preprocessor.joblib",
 )
 
-# Kolom mentah PascalCase (Supabase telco_customers_source) -> snake_case (modul kita).
-RAW_PASCAL_TO_SNAKE = {
-    "gender": "gender",
-    "SeniorCitizen": "senior_citizen",
-    "Partner": "partner",
-    "Dependents": "dependents",
-    "tenure": "tenure",
-    "PhoneService": "phone_service",
-    "MultipleLines": "multiple_lines",
-    "InternetService": "internet_service",
-    "OnlineSecurity": "online_security",
-    "OnlineBackup": "online_backup",
-    "DeviceProtection": "device_protection",
-    "TechSupport": "tech_support",
-    "StreamingTV": "streaming_tv",
-    "StreamingMovies": "streaming_movies",
-    "Contract": "contract",
-    "PaperlessBilling": "paperless_billing",
-    "PaymentMethod": "payment_method",
-    "MonthlyCharges": "monthly_charges",
-    "TotalCharges": "total_charges",
-}
 
 # Pemetaan eksplisit 29 kolom output ground-truth (PascalCase, dari preprocessor.joblib
 # asli) -> 29 kolom output modul kita (snake_case). Statis & eksplisit -- lebih mudah

@@ -102,3 +102,15 @@ def load_active_model(alias: str = constants.ACTIVE_ALIAS, tracking_uri: Optiona
     mis. verifikasi promosi Milestone 2.8)."""
     mlflow.set_tracking_uri(tracking_uri or constants.get_tracking_uri())
     return mlflow.pyfunc.load_model(f"models:/{constants.MODEL_NAME}@{alias}")
+
+
+def resolve_alias_version(alias: str = constants.ACTIVE_ALIAS, tracking_uri: Optional[str] = None) -> str:
+    """Selesaikan ``alias`` (mis. ``champion``) ke nomor versi konkret saat ini
+    -- Milestone 2.5. Dibutuhkan untuk lineage: alias bisa berpindah menunjuk
+    versi lain di masa depan (Milestone 2.8), jadi baris hasil prediksi WAJIB
+    mencatat nomor versi konkret yang benar-benar dipakai, bukan cuma nama
+    alias yang mutable.
+    """
+    mlflow.set_tracking_uri(tracking_uri or constants.get_tracking_uri())
+    client = mlflow.tracking.MlflowClient()
+    return client.get_model_version_by_alias(constants.MODEL_NAME, alias).version

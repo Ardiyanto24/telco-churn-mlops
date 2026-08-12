@@ -22,6 +22,7 @@ import pytest
 
 from churn_prediction.inference import predictor, registry
 from churn_prediction.inference.constants import THRESHOLD
+from churn_prediction.schema.column_mapping import RAW_PASCAL_TO_SNAKE
 from churn_prediction.transform.artifact_loader import load_original_preprocessor
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -53,31 +54,6 @@ pytestmark = pytest.mark.skipif(
     not SUPABASE_DB_URL or not PREPROCESSOR_PATH.exists() or not MODEL_PATH.exists(),
     reason="butuh SUPABASE_DB_URL (.env) dan artifacs/{proprocessor,model}",
 )
-
-# Kolom mentah PascalCase (Supabase telco_customers_source) -> snake_case (modul kita).
-# Identik tests/transform/test_parity_real_artifact.py.
-RAW_PASCAL_TO_SNAKE = {
-    "gender": "gender",
-    "SeniorCitizen": "senior_citizen",
-    "Partner": "partner",
-    "Dependents": "dependents",
-    "tenure": "tenure",
-    "PhoneService": "phone_service",
-    "MultipleLines": "multiple_lines",
-    "InternetService": "internet_service",
-    "OnlineSecurity": "online_security",
-    "OnlineBackup": "online_backup",
-    "DeviceProtection": "device_protection",
-    "TechSupport": "tech_support",
-    "StreamingTV": "streaming_tv",
-    "StreamingMovies": "streaming_movies",
-    "Contract": "contract",
-    "PaperlessBilling": "paperless_billing",
-    "PaymentMethod": "payment_method",
-    "MonthlyCharges": "monthly_charges",
-    "TotalCharges": "total_charges",
-}
-
 
 def _fetch_real_rows(limit=1000):
     import psycopg2

@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from churn_prediction.schema.column_mapping import RAW_PASCAL_TO_SNAKE
 from churn_prediction.schema.raw_schema import RawDataSchema
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -39,28 +40,6 @@ SUPABASE_DB_URL = _load_env_var("SUPABASE_DB_URL")
 pytestmark = pytest.mark.skipif(
     not SUPABASE_DB_URL, reason="butuh SUPABASE_DB_URL (.env atau environment)"
 )
-
-RAW_PASCAL_TO_SNAKE = {
-    "gender": "gender",
-    "SeniorCitizen": "senior_citizen",
-    "Partner": "partner",
-    "Dependents": "dependents",
-    "tenure": "tenure",
-    "PhoneService": "phone_service",
-    "MultipleLines": "multiple_lines",
-    "InternetService": "internet_service",
-    "OnlineSecurity": "online_security",
-    "OnlineBackup": "online_backup",
-    "DeviceProtection": "device_protection",
-    "TechSupport": "tech_support",
-    "StreamingTV": "streaming_tv",
-    "StreamingMovies": "streaming_movies",
-    "Contract": "contract",
-    "PaperlessBilling": "paperless_billing",
-    "PaymentMethod": "payment_method",
-    "MonthlyCharges": "monthly_charges",
-    "TotalCharges": "total_charges",
-}
 
 
 def _fetch_real_rows(limit=1500):
