@@ -66,6 +66,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1", "pytest-cov==7.1.0"]
+# prefect: opt-in, bukan dependency inti churn_prediction -- flow orchestration
+# (orchestration/flows/) dan consumer lain (real-time API M3.x) tidak semuanya
+# butuh Prefect terpasang. Lihat milestones/2.1-fondasi-orchestrator-model-registry/
+# decisions.md Keputusan #1.
+orchestration = ["prefect==3.8.2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
