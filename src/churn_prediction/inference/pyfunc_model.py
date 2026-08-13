@@ -16,7 +16,24 @@ import joblib
 import mlflow.pyfunc
 import pandas as pd
 
+from ..schema.column_mapping import RAW_PASCAL_TO_SNAKE
 from .constants import POSITIVE_CLASS_INDEX
+
+# Preprocessor+model asli DS di-fit TANPA nama fitur (numpy array polos --
+# dikonfirmasi via UserWarning sklearn "fitted without feature names" saat
+# transform dipanggil) -- artinya POSISI kolom, bukan cuma nama, menentukan
+# hasil `pipeline.transform()`/`model.predict_proba()` di internal
+# sklearn/lightgbm/xgboost. `RAW_PASCAL_TO_SNAKE.values()` adalah urutan
+# kanonik (mengikuti kolom dataset asli/`telco_customers_synthetic`, lihat
+# `schema/column_mapping.py`) -- SATU-SATUNYA urutan yang terbukti cocok
+# dengan preprocessor asli (dibuktikan lewat KK2 Milestone 1.5, ground truth
+# raw artifact). Ditemukan Milestone 3.2: DataFrame dari
+# `ChurnPredictionRequest.model_dump()` (urutan field beda -- kolom numerik
+# di akhir) menghasilkan `churn_probability` BERBEDA (bukan floating-point
+# noise, delta hingga ~0.36) padahal NAMA+NILAI kolom identik -- silent
+# wrong prediction, bukan error. Lihat
+# milestones/3.2-real-time-inference-api/decisions.md.
+_CANONICAL_COLUMN_ORDER = list(RAW_PASCAL_TO_SNAKE.values())
 
 
 class ChurnPyfuncModel(mlflow.pyfunc.PythonModel):
@@ -35,6 +52,11 @@ class ChurnPyfuncModel(mlflow.pyfunc.PythonModel):
         self._threshold = bundle["threshold"]
 
     def predict(self, context, model_input: pd.DataFrame, params=None) -> pd.DataFrame:
+        # Reorder ke urutan kanonik SEBELUM masuk pipeline -- lihat komentar
+        # `_CANONICAL_COLUMN_ORDER` di atas. Caller manapun (nama kolom benar,
+        # urutan apa pun) menghasilkan prediksi BENAR dan KONSISTEN, bukan
+        # bergantung urutan DataFrame yang kebetulan dikirim.
+        model_input = model_input[_CANONICAL_COLUMN_ORDER]
         transformed = self._pipeline.transform(model_input)
         probabilities = self._model.predict_proba(transformed)[:, POSITIVE_CLASS_INDEX]
         labels = (probabilities >= self._threshold).astype(int)
