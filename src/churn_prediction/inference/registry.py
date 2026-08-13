@@ -25,6 +25,7 @@ import mlflow.tracking
 
 from ..transform.artifact_loader import DEFAULT_PREPROCESSOR_PATH, load_fitted_pipeline
 from . import constants
+from .artifact_validation import sanity_check_bundle
 from .pyfunc_model import ChurnPyfuncModel
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -73,7 +74,19 @@ def register_model(bundle: dict, tracking_uri: Optional[str] = None):
     best-effort, BELUM diverifikasi menutup bug upstream 100% untuk semua
     kasus (registrasi versi berikutnya WAJIB diverifikasi ulang lintas-OS,
     bukan diasumsikan aman).
+
+    Gerbang sanity check (Milestone 2.8, Bagian 5.5 dokumen arsitektur)
+    dijalankan DI SINI -- di dalam ``register_model()``, bukan cuma di script
+    pemanggil -- supaya SETIAP jalur registrasi otomatis terlindungi.
+    ``ValueError`` di-raise SEBELUM ``mlflow.pyfunc.log_model()`` dipanggil
+    kalau gagal -- artifact rusak tidak pernah ter-log/registrasi sama sekali.
     """
+    sanity = sanity_check_bundle(bundle)
+    if not sanity.passed:
+        raise ValueError(
+            "Bundle gagal sanity check, TIDAK diregistrasi: " + "; ".join(sanity.failures)
+        )
+
     mlflow.set_tracking_uri(tracking_uri or constants.get_tracking_uri())
     with tempfile.TemporaryDirectory() as tmp_dir:
         bundle_path = Path(tmp_dir) / "bundle.joblib"

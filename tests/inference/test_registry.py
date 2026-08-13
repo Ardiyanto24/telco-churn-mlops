@@ -9,7 +9,9 @@ Skip otomatis kalau artifact asli (`artifacs/`) tidak ada.
 """
 
 from pathlib import Path
+from unittest.mock import patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -160,3 +162,27 @@ def test_load_active_model_reflects_alias_reassignment(tmp_path):
     assert label_when_v1_active == 0  # 0.566 < threshold v1 (0.6238)
     assert label_when_v2_active == 1  # 0.566 >= threshold v2 (0.5)
     assert label_when_v1_active != label_when_v2_active
+
+
+# ── Sanity check gate -- Milestone 2.8 Checkpoint 1 ─────────────────────────
+
+class _NaNModel:
+    def predict_proba(self, X):
+        return np.full((len(X), 2), np.nan)
+
+
+def test_register_model_rejects_broken_bundle_before_mlflow_called(tmp_path):
+    """KK1 M2.8, uji coba terkontrol: bundle rusak (NaN) TIDAK PERNAH sampai
+    memanggil mlflow.pyfunc.log_model() -- dibuktikan lewat spy, pola sama
+    test_invalid_data_rejected_before_registry_called (predictor.py)."""
+    tracking_uri = _tracking_uri(tmp_path)
+    broken_bundle = {
+        "pipeline": registry.build_bundle()["pipeline"],
+        "model": _NaNModel(),
+        "threshold": 0.5,
+    }
+
+    with patch("mlflow.pyfunc.log_model") as spy_log_model:
+        with pytest.raises(ValueError, match="sanity check"):
+            registry.register_model(broken_bundle, tracking_uri=tracking_uri)
+        spy_log_model.assert_not_called()
