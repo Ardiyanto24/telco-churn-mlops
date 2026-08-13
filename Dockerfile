@@ -27,3 +27,11 @@ COPY scripts/ scripts/
 # image ini untuk inference runtime, bukan test suite/flow Prefect. Lihat
 # decisions.md Keputusan #4.
 RUN pip install --no-cache-dir .
+
+# Milestone 3.2 -- real-time inference API. fastapi/uvicorn sudah ikut
+# ter-install lewat dependency inti di atas (pyproject.toml). Model TETAP
+# dimuat runtime dari MLflow registry (lihat app.py lifespan), bukan dibake
+# ke image -- prinsip rollback-via-alias (M3.1 decisions.md Keputusan #3)
+# masih berlaku persis sama di sini.
+EXPOSE 8000
+CMD ["uvicorn", "churn_prediction.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
