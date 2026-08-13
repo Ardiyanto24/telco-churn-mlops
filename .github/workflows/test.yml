@@ -20,6 +20,29 @@ jobs:
       - name: Run unit test suite (no external credentials needed)
         run: pytest tests/ -v -m "not integration" --cov=churn_prediction --cov-branch --cov-report=term-missing
 
+  quality-data-check:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package + dev dependencies
+        run: pip install -e ".[dev]"
+
+      # Gerbang kualitas data (M2.4) OTOMATIS, dipicu tiap push -- mode
+      # non-recording (record_history=False), TIDAK menulis ke
+      # quality.gate_run_history supaya tidak mencemari baseline yang
+      # dipakai DAG produksi (M2.5). Verdict stop menggagalkan job ini.
+      - name: Run quality gate check (non-recording) against live data
+        env:
+          BATCH_READER_DB_URL: ${{ secrets.BATCH_READER_DB_URL }}
+          QUALITY_GATE_DB_URL: ${{ secrets.QUALITY_GATE_DB_URL }}
+        run: python orchestration/ci_quality_check.py
+
   integration-tests:
     needs: unit-tests
     runs-on: ubuntu-latest

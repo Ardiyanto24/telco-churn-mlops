@@ -65,6 +65,7 @@ def run_gate(
     categorical_columns: list,
     connection_string: Optional[str] = None,
     n_runs: int = 7,
+    record_history: bool = True,
 ) -> GateResult:
     """Jalankan gerbang kualitas data untuk `df` (satu batch/hari data mentah).
 
@@ -73,6 +74,13 @@ def run_gate(
     distribusinya. Rekomendasi: 18 kolom input fitur model (lihat
     milestones/2.2-klasifikasi-fitur-feature-store/decisions.md), bukan
     seluruh kolom mentah.
+
+    `record_history`: default True (perilaku DAG M2.5 tidak berubah -- tiap
+    run ikut membentuk baseline rolling). Set False untuk pemanggil yang
+    HANYA ingin verdict tanpa menulis riwayat -- mis. gerbang CI Milestone
+    2.7, yang jalan tiap push dan TIDAK boleh mencemari baseline yang
+    dipakai DAG produksi (root cause pencemaran berulang M2.5/M2.6, lihat
+    milestones/2.7-cicd-verifikasi-parity/decisions.md).
     """
     all_columns = list(numeric_columns) + list(categorical_columns)
     today_row_count = len(df)
@@ -96,14 +104,16 @@ def run_gate(
     ]
     verdict = aggregate_verdict(results)
 
-    run_id = baseline_store.record_run(
-        source_table=source_table,
-        row_count=today_row_count,
-        null_proportions=today_nulls,
-        category_distributions=today_dist,
-        verdict=verdict,
-        details={"checks": [r.__dict__ for r in results]},
-        connection_string=connection_string,
-    )
+    run_id = None
+    if record_history:
+        run_id = baseline_store.record_run(
+            source_table=source_table,
+            row_count=today_row_count,
+            null_proportions=today_nulls,
+            category_distributions=today_dist,
+            verdict=verdict,
+            details={"checks": [r.__dict__ for r in results]},
+            connection_string=connection_string,
+        )
 
     return GateResult(verdict=verdict, checks=results, run_id=run_id)

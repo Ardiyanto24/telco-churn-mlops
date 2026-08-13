@@ -160,3 +160,48 @@ def test_insufficient_baseline_history_does_not_false_flag(source_table_tag):
     assert result.verdict == "pass"
     volume_result = next(r for r in result.checks if r.check == "volume")
     assert "belum cukup data" in volume_result.message
+
+
+def _count_history_rows(tag):
+    conn = psycopg2.connect(QUALITY_GATE_DB_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM quality.gate_run_history WHERE source_table = %s;", (tag,))
+            return cur.fetchone()[0]
+    finally:
+        conn.close()
+
+
+def test_record_history_false_does_not_write_row(source_table_tag):
+    """Milestone 2.7 -- gerbang CI butuh verdict nyata TANPA menulis riwayat
+    (mencegah pencemaran baseline yang dipakai DAG produksi, root cause
+    yang sudah 2x ditemukan M2.5/M2.6)."""
+    _seed_baseline(source_table_tag, n_rows=1000)
+    before = _count_history_rows(source_table_tag)
+
+    today = _make_df(1000)
+    result = run_gate(
+        today, source_table_tag, NUMERIC_COLUMNS, CATEGORICAL_COLUMNS,
+        connection_string=QUALITY_GATE_DB_URL, record_history=False,
+    )
+
+    after = _count_history_rows(source_table_tag)
+    assert result.run_id is None
+    assert after == before, "record_history=False TIDAK BOLEH menulis baris ke quality.gate_run_history"
+
+
+def test_record_history_true_default_still_writes_row(source_table_tag):
+    """Perilaku default (dipakai DAG M2.5) TIDAK berubah oleh penambahan
+    parameter record_history."""
+    _seed_baseline(source_table_tag, n_rows=1000)
+    before = _count_history_rows(source_table_tag)
+
+    today = _make_df(1000)
+    result = run_gate(
+        today, source_table_tag, NUMERIC_COLUMNS, CATEGORICAL_COLUMNS,
+        connection_string=QUALITY_GATE_DB_URL,
+    )
+
+    after = _count_history_rows(source_table_tag)
+    assert result.run_id is not None
+    assert after == before + 1
