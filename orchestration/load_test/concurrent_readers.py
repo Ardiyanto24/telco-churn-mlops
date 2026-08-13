@@ -21,6 +21,7 @@ BUKAN pytest permanen -- alat ukur sekali pakai untuk milestone ini.
 """
 
 import statistics
+import threading
 import time
 from typing import Callable, List, Optional
 
@@ -35,38 +36,55 @@ _DASHBOARD_AGGREGATE_SQL = """
 """
 
 
-def _timed_loop(query_fn: Callable[[], None], duration_s: float, interval_s: float) -> List[float]:
-    """Jalankan ``query_fn`` berulang selama ``duration_s`` detik, jeda
-    ``interval_s`` antar panggilan, kembalikan list latency (ms)."""
-    latencies = []
-    deadline = time.monotonic() + duration_s
-    while time.monotonic() < deadline:
+def _timed_loop(
+    query_fn: Callable[[], None],
+    interval_s: float,
+    duration_s: Optional[float] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> List[dict]:
+    """Jalankan ``query_fn`` berulang, jeda ``interval_s`` antar panggilan,
+    sampai ``duration_s`` terlampaui DAN/ATAU ``stop_event`` di-set (dipakai
+    Checkpoint 3 -- durasi flow batch tidak diketahui presisi di muka).
+    Kembalikan list ``{"t": epoch_saat_mulai_query, "latency_ms": ...}``."""
+    if duration_s is None and stop_event is None:
+        raise ValueError("Wajib beri duration_s atau stop_event (atau keduanya).")
+    samples = []
+    deadline = time.monotonic() + duration_s if duration_s is not None else None
+    while True:
+        if deadline is not None and time.monotonic() >= deadline:
+            break
+        if stop_event is not None and stop_event.is_set():
+            break
+        t0 = time.time()
         start = time.perf_counter()
         query_fn()
-        latencies.append((time.perf_counter() - start) * 1000.0)
+        latency_ms = (time.perf_counter() - start) * 1000.0
+        samples.append({"t": t0, "latency_ms": latency_ms})
         time.sleep(interval_s)
-    return latencies
+    return samples
 
 
 def simulate_mlflow_alias_reads(
-    duration_s: float,
     interval_s: float = 1.0,
+    duration_s: Optional[float] = None,
+    stop_event: Optional[threading.Event] = None,
     alias: str = "champion",
     tracking_uri: Optional[str] = None,
-) -> List[float]:
+) -> List[dict]:
     """Consumer A -- resolusi alias versi model berulang."""
 
     def _query():
         registry.resolve_alias_version(alias=alias, tracking_uri=tracking_uri)
 
-    return _timed_loop(_query, duration_s, interval_s)
+    return _timed_loop(_query, interval_s, duration_s=duration_s, stop_event=stop_event)
 
 
 def simulate_dashboard_aggregate_reads(
-    duration_s: float,
     connection_string: str,
     interval_s: float = 1.0,
-) -> List[float]:
+    duration_s: Optional[float] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> List[dict]:
     """Consumer B -- query agregat gaya dashboard monitoring berulang, satu
     koneksi dipakai sepanjang durasi (meniru service yang persist, bukan
     reconnect tiap query)."""
@@ -78,16 +96,17 @@ def simulate_dashboard_aggregate_reads(
                 cur.execute(_DASHBOARD_AGGREGATE_SQL)
                 cur.fetchall()
 
-        return _timed_loop(_query, duration_s, interval_s)
+        return _timed_loop(_query, interval_s, duration_s=duration_s, stop_event=stop_event)
     finally:
         conn.close()
 
 
-def summarize_latencies(samples: List[float]) -> dict:
-    """Ringkas list latency (ms) jadi p50/p95/min/max/n."""
+def summarize_latencies(samples: List[dict]) -> dict:
+    """Ringkas list sample (``{"t", "latency_ms"}``, lihat ``_timed_loop``)
+    jadi p50/p95/min/max/n dari ``latency_ms``."""
     if not samples:
         return {"n": 0, "p50": None, "p95": None, "min": None, "max": None}
-    ordered = sorted(samples)
+    ordered = sorted(s["latency_ms"] for s in samples)
     n = len(ordered)
     p95_index = min(int(round(0.95 * (n - 1))), n - 1)
     return {
