@@ -50,10 +50,13 @@ def _load_env_var(name):
 
 SUPABASE_DB_URL = _load_env_var("SUPABASE_DB_URL")
 
-pytestmark = pytest.mark.skipif(
-    not SUPABASE_DB_URL or not PREPROCESSOR_PATH.exists() or not MODEL_PATH.exists(),
-    reason="butuh SUPABASE_DB_URL (.env) dan artifacs/{proprocessor,model}",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not SUPABASE_DB_URL or not PREPROCESSOR_PATH.exists() or not MODEL_PATH.exists(),
+        reason="butuh SUPABASE_DB_URL (.env) dan artifacs/{proprocessor,model}",
+    ),
+    pytest.mark.integration,
+]
 
 def _fetch_real_rows(limit=1000):
     import psycopg2

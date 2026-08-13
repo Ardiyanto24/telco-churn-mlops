@@ -37,9 +37,12 @@ def _load_env_var(name):
 
 SUPABASE_DB_URL = _load_env_var("SUPABASE_DB_URL")
 
-pytestmark = pytest.mark.skipif(
-    not SUPABASE_DB_URL, reason="butuh SUPABASE_DB_URL (.env atau environment)"
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not SUPABASE_DB_URL, reason="butuh SUPABASE_DB_URL (.env atau environment)"
+    ),
+    pytest.mark.integration,
+]
 
 
 def _fetch_real_rows(limit=1500):

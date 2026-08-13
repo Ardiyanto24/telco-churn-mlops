@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  pytest:
+  unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,14 +17,61 @@ jobs:
       - name: Install package + dev dependencies
         run: pip install -e ".[dev,orchestration]"
 
-      - name: Run test suite
-        run: pytest tests/ -v --cov=churn_prediction --cov-branch --cov-report=term-missing
-        # Test yang butuh SUPABASE_DB_URL (integration test, mis.
-        # tests/transform/test_parity_real_artifact.py dan
-        # tests/schema/test_raw_schema_supabase.py) otomatis SKIP di sini --
-        # secret belum dikonfigurasi karena repo belum punya remote GitHub
-        # (lihat milestones/1.4-unit-test-transformasi/decisions.md
-        # Keputusan #3). Untuk mengaktifkan test integrasi Supabase di CI:
-        # tambahkan SUPABASE_DB_URL sebagai Repository Secret (Settings ->
-        # Secrets and variables -> Actions), lalu tambahkan
-        # `env: SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}` di step ini.
+      - name: Run unit test suite (no external credentials needed)
+        run: pytest tests/ -v -m "not integration" --cov=churn_prediction --cov-branch --cov-report=term-missing
+
+  integration-tests:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package + dev dependencies
+        run: pip install -e ".[dev,orchestration]"
+
+      # Dua langkah pytest TERPISAH (bukan satu invocation) -- Milestone 2.7
+      # menemukan kuirk mlflow-skinny: MlflowClient men-cache engine/store
+      # per tracking-URI di dalam PROSES yang sama tanpa pernah dispose;
+      # kalau satu test beralih ke tracking URI SQLite sementara (mis.
+      # tests/inference/test_e2e_parity.py, tmp_path) lalu test LAIN
+      # (tests/orchestration/, memanggil predict_active() ke registry
+      # Postgres sungguhan) jalan sesudahnya di proses yang SAMA, resolusi
+      # alias "champion" gagal MlflowException palsu -- dibuktikan lewat
+      # repro minimal (lihat milestones/2.7-cicd-verifikasi-parity/decisions.md).
+      # Proses terpisah = state MLflow tidak pernah bocor antar test file.
+      - name: Run integration tests -- orchestration (real MLflow registry)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BATCH_READER_DB_URL: ${{ secrets.BATCH_READER_DB_URL }}
+          BATCH_WRITER_DB_URL: ${{ secrets.BATCH_WRITER_DB_URL }}
+          QUALITY_GATE_DB_URL: ${{ secrets.QUALITY_GATE_DB_URL }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          MLFLOW_S3_ENDPOINT_URL: ${{ secrets.MLFLOW_S3_ENDPOINT_URL }}
+          MLFLOW_ARTIFACT_BUCKET: ${{ secrets.MLFLOW_ARTIFACT_BUCKET }}
+          PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }}
+          PREFECT_API_URL: ${{ secrets.PREFECT_API_URL }}
+        run: pytest tests/orchestration -v -m integration
+
+      - name: Run integration tests -- lainnya (parity, schema, quality)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BATCH_READER_DB_URL: ${{ secrets.BATCH_READER_DB_URL }}
+          BATCH_WRITER_DB_URL: ${{ secrets.BATCH_WRITER_DB_URL }}
+          QUALITY_GATE_DB_URL: ${{ secrets.QUALITY_GATE_DB_URL }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          MLFLOW_S3_ENDPOINT_URL: ${{ secrets.MLFLOW_S3_ENDPOINT_URL }}
+          MLFLOW_ARTIFACT_BUCKET: ${{ secrets.MLFLOW_ARTIFACT_BUCKET }}
+        run: pytest tests/ -v -m integration --ignore=tests/orchestration
+
+  # Milestone 3.x (Orang #3, real-time API): tambahkan job baru di file ini
+  # dengan `needs: [unit-tests, quality-data-check, integration-tests]` untuk
+  # gerbang deployment service Anda sendiri -- pipeline CI yang sama, bukan
+  # infrastruktur terpisah (lihat milestones/2.7-cicd-verifikasi-parity/report.md).

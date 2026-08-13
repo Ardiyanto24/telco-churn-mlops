@@ -45,10 +45,13 @@ def _load_env_var(name):
 QUALITY_GATE_DB_URL = _load_env_var("QUALITY_GATE_DB_URL")
 SUPABASE_DB_URL = _load_env_var("SUPABASE_DB_URL")
 
-pytestmark = pytest.mark.skipif(
-    not QUALITY_GATE_DB_URL or not SUPABASE_DB_URL,
-    reason="butuh QUALITY_GATE_DB_URL dan SUPABASE_DB_URL di .env",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not QUALITY_GATE_DB_URL or not SUPABASE_DB_URL,
+        reason="butuh QUALITY_GATE_DB_URL dan SUPABASE_DB_URL di .env",
+    ),
+    pytest.mark.integration,
+]
 
 NUMERIC_COLUMNS = ["tenure", "MonthlyCharges"]
 CATEGORICAL_COLUMNS = ["Contract"]

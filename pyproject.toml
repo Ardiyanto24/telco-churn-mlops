@@ -91,3 +91,14 @@ where = ["src"]
 # Milestone 2.7 saat verifikasi run CI sungguhan pertama kali berhasil lolos
 # instalasi dependency.
 pythonpath = ["."]
+markers = [
+    # Test yang butuh kredensial Supabase/MLflow sungguhan (skip lewat
+    # pytest.mark.skipif kalau env var tidak diset, pola established sejak
+    # M1.2/M1.3) -- dipisah job CI tersendiri (Milestone 2.7) supaya gerbang
+    # unit test (cepat, tanpa secret) tidak menunggu gerbang ini. BEDA dari
+    # test yang skip karena file artifact LOKAL tidak ada (artifacs/,
+    # gitignored, tidak pernah ada di checkout CI) -- yang terakhir ini
+    # SENGAJA tidak ditandai integration karena menambahkan secret tidak
+    # akan pernah membuatnya jalan di CI (lihat milestones/2.7-.../decisions.md).
+    "integration: butuh kredensial Supabase/MLflow sungguhan (network), bukan cuma kode",
+]

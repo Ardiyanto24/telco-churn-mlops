@@ -60,10 +60,13 @@ def _load_env_var(name):
 
 SUPABASE_DB_URL = _load_env_var("SUPABASE_DB_URL")
 
-pytestmark = pytest.mark.skipif(
-    not SUPABASE_DB_URL or not ARTIFACT_PATH.exists(),
-    reason="butuh SUPABASE_DB_URL (.env) dan artifacs/proprocessor/preprocessor.joblib",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not SUPABASE_DB_URL or not ARTIFACT_PATH.exists(),
+        reason="butuh SUPABASE_DB_URL (.env) dan artifacs/proprocessor/preprocessor.joblib",
+    ),
+    pytest.mark.integration,
+]
 
 
 # Pemetaan eksplisit 29 kolom output ground-truth (PascalCase, dari preprocessor.joblib

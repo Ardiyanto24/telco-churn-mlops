@@ -66,10 +66,13 @@ SUPABASE_DB_URL = _load_env_var("SUPABASE_DB_URL")
 BATCH_READER_DB_URL = _load_env_var("BATCH_READER_DB_URL")
 BATCH_WRITER_DB_URL = _load_env_var("BATCH_WRITER_DB_URL")
 
-pytestmark = pytest.mark.skipif(
-    not SUPABASE_DB_URL or not BATCH_READER_DB_URL or not BATCH_WRITER_DB_URL,
-    reason="butuh SUPABASE_DB_URL, BATCH_READER_DB_URL, BATCH_WRITER_DB_URL di .env",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not SUPABASE_DB_URL or not BATCH_READER_DB_URL or not BATCH_WRITER_DB_URL,
+        reason="butuh SUPABASE_DB_URL, BATCH_READER_DB_URL, BATCH_WRITER_DB_URL di .env",
+    ),
+    pytest.mark.integration,
+]
 
 
 def _cleanup_batch_run(batch_run_id):
