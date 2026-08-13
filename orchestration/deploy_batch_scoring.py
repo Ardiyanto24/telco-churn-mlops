@@ -12,6 +12,15 @@ Kredensial (koneksi Postgres least-privilege, MLflow, S3-compatible)
 DISIMPAN sebagai Prefect Secret block -- BUKAN plaintext di job_variables
 (prinsip least-privilege/no-hardcoded-secrets CLAUDE.md tetap berlaku
 meski disimpan di Prefect Cloud, pihak ketiga).
+
+Catatan KD-1 (docs/keterbatasan-diterima.md): work pool Managed yang
+dideploy skrip ini TIDAK BISA menjalankan task score_batch (LightGBM,
+libgomp.so.1 hilang). Run terjadwal/terverifikasi untuk flow LENGKAP
+(termasuk scoring) memakai jalur terpisah --
+.github/workflows/batch-scoring.yml (workflow_dispatch, ubuntu-latest,
+python -m orchestration.flows.batch_scoring langsung, tanpa lewat
+deployment ini). Deployment Managed di sini tetap berguna untuk
+task non-LightGBM (extract_raw_data, gerbang kualitas data M2.4).
 """
 
 import os

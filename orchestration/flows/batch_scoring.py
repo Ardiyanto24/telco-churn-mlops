@@ -193,4 +193,9 @@ def batch_scoring_flow(limit: Optional[int] = None) -> dict:
 
 
 if __name__ == "__main__":
-    batch_scoring_flow()
+    # BATCH_SCORING_LIMIT -- dipakai entrypoint GitHub Actions
+    # (.github/workflows/batch-scoring.yml, KD-1) untuk run verifikasi
+    # terkontrol tanpa argumen CLI; kosong/absen = skala penuh (perilaku
+    # lama tidak berubah).
+    _limit_env = os.environ.get("BATCH_SCORING_LIMIT")
+    batch_scoring_flow(limit=int(_limit_env) if _limit_env else None)

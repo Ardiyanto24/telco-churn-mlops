@@ -1,0 +1,54 @@
+name: batch-scoring
+
+# Trigger manual SAJA (workflow_dispatch) -- BUKAN cron aktif. batch_scoring_flow()
+# masih membaca telco_customers_source (594rb baris statis, lihat
+# orchestration/flows/batch_scoring.py), jadi jadwal rutin di titik ini akan
+# menghasilkan prediksi duplikat identik tanpa informasi baru -- persis pola
+# yang sengaja dihindari milestones/2.5-batch-scoring-dag/decisions.md
+# Keputusan #2. Cron sungguhan menunggu keputusan cutover Fase 2 (KT-1) ke
+# telco_customers_synthetic.
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Jumlah baris di-scoring (kosongkan untuk skala penuh 594rb baris)"
+        required: false
+        default: "1000"
+
+jobs:
+  batch-scoring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package + orchestration dependencies
+        run: pip install -e ".[orchestration]"
+
+      # Dijalankan LANGSUNG sebagai script (python -m), BUKAN lewat deployment
+      # Prefect Managed work pool -- KD-1 (docs/keterbatasan-diterima.md):
+      # Managed tidak bisa memuat model LightGBM (libgomp.so.1 hilang, gap
+      # packaging upstream, tidak ada akses apt-get). Runner ubuntu-latest
+      # TERBUKTI tidak kena masalah ini -- job integration-tests di test.yml
+      # sudah memuat model yang sama lewat predict_active() di tiap push
+      # sejak Milestone 2.7. @flow/@task Prefect tetap melapor ke Prefect
+      # Cloud lewat PREFECT_API_KEY/PREFECT_API_URL terlepas dari mekanisme
+      # trigger -- histori run tetap tercatat di Prefect Cloud (M2.1), cuma
+      # penjadwalan dikelola GitHub Actions, bukan work pool/deployment Prefect.
+      - name: Run batch_scoring_flow()
+        env:
+          BATCH_SCORING_LIMIT: ${{ inputs.limit }}
+          BATCH_READER_DB_URL: ${{ secrets.BATCH_READER_DB_URL }}
+          BATCH_WRITER_DB_URL: ${{ secrets.BATCH_WRITER_DB_URL }}
+          QUALITY_GATE_DB_URL: ${{ secrets.QUALITY_GATE_DB_URL }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          MLFLOW_S3_ENDPOINT_URL: ${{ secrets.MLFLOW_S3_ENDPOINT_URL }}
+          MLFLOW_ARTIFACT_BUCKET: ${{ secrets.MLFLOW_ARTIFACT_BUCKET }}
+          PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }}
+          PREFECT_API_URL: ${{ secrets.PREFECT_API_URL }}
+        run: python -m orchestration.flows.batch_scoring
