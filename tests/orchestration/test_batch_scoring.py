@@ -211,6 +211,89 @@ def test_write_predictions_rolls_back_fully_on_partial_failure():
     assert count == 0, "rollback gagal -- ada baris ter-insert sebagian"
 
 
+# ── M2.9 KK1: scoring telco_customers_synthetic (customer_key, bukan customer_id) ──
+
+def _existing_completed_generation_id():
+    """Ambil generation_id NYATA yang sudah completed di synthetic_generation_runs
+    -- test ini butuh data real (M2.9 Keputusan #7), bukan fixture buatan,
+    tapi dicari dinamis (bukan hardcode UUID) supaya tidak rapuh kalau data
+    spesifik yang ditemukan sesi ini kelak dihapus/berubah."""
+    conn = psycopg2.connect(SUPABASE_DB_URL)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT generation_id FROM synthetic_generation_runs WHERE status = 'completed' "
+        "ORDER BY created_at DESC LIMIT 1;"
+    )
+    row = cur.fetchone()
+    conn.close()
+    return str(row[0]) if row else None
+
+
+@pytest.fixture
+def synthetic_flow_result():
+    """Jalankan batch_scoring_flow untuk source_table=telco_customers_synthetic
+    terhadap subset kecil (limit=5) dari generation_id nyata yang sudah ada --
+    bersihkan baris hasil sesudahnya (hygiene test biasa, BEDA dari uji coba
+    terkontrol KK1 M2.9 yang men-scoring skala penuh 1.000 baris dan
+    MENYIMPAN hasilnya sebagai deliverable nyata, bukan dihapus)."""
+    generation_id = _existing_completed_generation_id()
+    if not generation_id:
+        pytest.skip("tidak ada generation_id status='completed' di synthetic_generation_runs")
+    result = batch_scoring_flow(limit=5, source_table="telco_customers_synthetic", generation_id=generation_id)
+    result["generation_id"] = generation_id
+    yield result
+    _cleanup_batch_run(result["batch_run_id"])
+
+
+def test_synthetic_scoring_writes_customer_key_not_customer_id(synthetic_flow_result):
+    conn = psycopg2.connect(SUPABASE_DB_URL)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT customer_id, customer_key, source_table, generation_id, model_version, flow_run_id
+        FROM predictions.batch_predictions
+        WHERE batch_run_id = %s;
+        """,
+        (synthetic_flow_result["batch_run_id"],),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    assert len(rows) == 5
+    for customer_id, customer_key, source_table, generation_id, model_version, flow_run_id in rows:
+        assert customer_id is None, "baris bersumber synthetic wajib customer_id NULL (exactly-one-identity)"
+        assert customer_key is not None
+        assert source_table == "telco_customers_synthetic"
+        assert str(generation_id) == synthetic_flow_result["generation_id"]
+        assert model_version is not None
+
+
+def test_source_path_unaffected_by_synthetic_support(flow_result):
+    """Non-regresi eksplisit M2.9: jalur telco_customers_source (parameter
+    default, tidak eksplisit override) tetap menulis customer_id terisi,
+    customer_key NULL -- pola sebaliknya dari test synthetic di atas."""
+    conn = psycopg2.connect(SUPABASE_DB_URL)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT customer_id, customer_key, source_table, generation_id
+        FROM predictions.batch_predictions
+        WHERE batch_run_id = %s
+        LIMIT 5;
+        """,
+        (flow_result["batch_run_id"],),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    assert len(rows) == 5
+    for customer_id, customer_key, source_table, generation_id in rows:
+        assert customer_id is not None
+        assert customer_key is None
+        assert source_table == "telco_customers_source"
+        assert generation_id is None
+
+
 # ── KK2: retry Prefect pada kegagalan transient ─────────────────────────────
 
 def test_extract_raw_data_retries_on_transient_failure():
