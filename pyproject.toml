@@ -68,10 +68,20 @@ dependencies = [
     # boto3: artifact store MLflow di Supabase Storage (S3-compatible) -- mlflow-skinny
     # tidak bundling boto3, perlu ditambah eksplisit. Lihat Keputusan #3.
     "boto3==1.43.69",
+    # fastapi/uvicorn: Milestone 3.2 (real-time inference API) -- SUDAH terpasang
+    # transitif sejak M1.5 lewat mlflow-skinny (Requires-Dist: fastapi<1) dan
+    # orchestration extra lewat prefect (fastapi<1.0.0,>=0.139.0), dipin eksplisit
+    # di sini persis versi yang terbukti resolve di M3.1 -- konsisten prinsip
+    # M1.2 (kunci setiap dependency, jangan andalkan floating transitive pin).
+    # Lihat milestones/3.2-real-time-inference-api/decisions.md Keputusan #1.
+    "fastapi==0.141.1",
+    "uvicorn==0.52.3",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==9.1.1", "pytest-cov==7.1.0"]
+# httpx: dibutuhkan fastapi.testclient.TestClient (Milestone 3.2), hanya untuk
+# test -- bukan runtime.
+dev = ["pytest==9.1.1", "pytest-cov==7.1.0", "httpx==0.28.1"]
 # prefect: opt-in, bukan dependency inti churn_prediction -- flow orchestration
 # (orchestration/flows/) dan consumer lain (real-time API M3.x) tidak semuanya
 # butuh Prefect terpasang. Lihat milestones/2.1-fondasi-orchestrator-model-registry/
