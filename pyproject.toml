@@ -6,7 +6,13 @@ build-backend = "setuptools.build_meta"
 name = "churn_prediction"
 version = "0.1.0"
 description = "Modul transformasi (preprocessing + feature engineering) untuk model churn prediction telekomunikasi."
-requires-python = ">=3.11"
+# >=3.12 -- batas nyata numpy==2.5.2 di bawah (bukan ">=3.11" seperti sebelumnya,
+# yang tidak pernah benar-benar diverifikasi -- venv dev proyek ini sebenarnya
+# Python 3.13.12). Ketidaksesuaian ini adalah akar penyebab CI (.github/workflows/
+# test.yml) gagal di SETIAP push sejak repo terhubung ke GitHub, baru ditemukan
+# Milestone 2.7 lewat `gh run list` -- lihat milestones/2.7-cicd-verifikasi-parity/
+# decisions.md.
+requires-python = ">=3.12"
 # Dikunci Checkpoint 6 (2026-08-11) -- lihat milestones/1.2-modularisasi-preprocessing/decisions.md
 # Keputusan #2. scikit-learn==1.6.1 DIKONFIRMASI, bukan tebakan -- terungkap dari
 # InconsistentVersionWarning saat memuat artifacs/proprocessor/preprocessor.joblib
