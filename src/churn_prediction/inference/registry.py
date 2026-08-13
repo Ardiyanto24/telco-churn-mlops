@@ -61,6 +61,18 @@ def register_model(bundle: dict, tracking_uri: Optional[str] = None):
     ke ``constants.MODEL_NAME`` di tracking URI yang diberikan (default
     ``constants.get_tracking_uri()``). Mengembalikan ``ModelInfo`` (punya
     ``.registered_model_version``).
+
+    ``bundle_path.as_posix()`` (BUKAN ``str(bundle_path)``) -- mitigasi bug
+    upstream MLflow (https://github.com/mlflow/mlflow/issues/11862): saat
+    ``artifacts={}`` di-log dari Windows, MLflow menyimpan path relatif
+    artifact APA ADANYA (termasuk backslash Windows) ke manifest ``MLmodel``,
+    yang lalu gagal di-resolve saat model dimuat dari Linux (mis. Prefect
+    Managed, ditemukan Milestone 2.5 Checkpoint 3 -- lihat
+    milestones/2.5-batch-scoring-dag/decisions.md). ``.as_posix()`` memaksa
+    forward-slash terlepas dari OS tempat registrasi dijalankan -- mitigasi
+    best-effort, BELUM diverifikasi menutup bug upstream 100% untuk semua
+    kasus (registrasi versi berikutnya WAJIB diverifikasi ulang lintas-OS,
+    bukan diasumsikan aman).
     """
     mlflow.set_tracking_uri(tracking_uri or constants.get_tracking_uri())
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -70,7 +82,7 @@ def register_model(bundle: dict, tracking_uri: Optional[str] = None):
             model_info = mlflow.pyfunc.log_model(
                 name="model",
                 python_model=ChurnPyfuncModel(),
-                artifacts={"bundle": str(bundle_path)},
+                artifacts={"bundle": bundle_path.as_posix()},
                 registered_model_name=constants.MODEL_NAME,
             )
     return model_info
