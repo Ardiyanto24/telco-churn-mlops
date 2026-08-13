@@ -21,7 +21,7 @@ Tidak ada MLflow UI web yang selalu hidup — untuk browsing experiment/model hi
 | Alias | Makna |
 |---|---|
 | `champion` | Versi aktif produksi saat ini. Satu-satunya alias yang WAJIB selalu ada dan menunjuk ke versi valid. |
-| `challenger` | Dicadangkan untuk Milestone 2.8 (verifikasi versi kandidat sebelum promosi) — belum dipakai sampai M2.8 dikerjakan. |
+| `challenger` | Versi kandidat yang sedang/terakhir diverifikasi (Milestone 2.8) — TIDAK menunjukkan versi itu sudah/akan jadi produksi, cuma penanda "kandidat teregistrasi terakhir". Bisa menunjuk versi yang sama dengan `champion` (setelah promosi) atau versi lain (kandidat baru belum dipromosikan). |
 
 Nama alias `champion` adalah konstanta (`churn_prediction.inference.constants.ACTIVE_ALIAS`) — jangan hardcode string literal di kode pemanggil.
 
@@ -40,17 +40,23 @@ Untuk kebutuhan pin ke versi eksplisit (mis. verifikasi/debug, atau perbandingan
 
 ## 5. Cara Mempromosikan Versi Baru
 
-1. Registrasikan artifact baru sebagai kandidat versi lewat `churn_prediction.inference.registry.register_model()` (menghasilkan nomor versi baru, TIDAK otomatis jadi aktif).
-2. (Milestone 2.8, belum diimplementasikan) Jalankan sanity check + verifikasi-sebelum-promosi terhadap versi kandidat.
-3. Pindahkan alias `champion` ke versi baru lewat `churn_prediction.inference.registry.set_active_alias(version, alias="champion")` — atau `python scripts/promote_active_alias.py <version>`.
-4. Batch DAG dan real-time API otomatis memakai versi baru pada pemanggilan `load_active_model()` berikutnya, TANPA perlu redeploy/restart (konsisten prinsip rollback = ganti penanda versi, `CLAUDE.md`).
+Prosedur formal (Milestone 2.8) — siapa berwenang: operator/pemilik registry (Orang #2), manual, tidak ada RBAC formal (proyek solo, sesuai skala Bagian 9 dokumen arsitektur — "Yang Sengaja Berada di Luar Cakupan").
+
+1. Registrasikan artifact sebagai kandidat versi lewat `churn_prediction.inference.registry.register_model()` (menghasilkan nomor versi baru, TIDAK otomatis jadi aktif). **Sanity check** (Milestone 2.8 — `churn_prediction.inference.artifact_validation.sanity_check_bundle()`) berjalan OTOMATIS di dalam `register_model()` — artifact yang gagal (exception, NaN, output di luar kontrak) TIDAK PERNAH sampai ter-log/registrasi. Tag kandidat dengan alias `challenger` lewat `set_active_alias(version, alias="challenger")` — atau `python scripts/register_candidate_model.py` (varian uji, lihat Bagian 7).
+2. Jalankan **verifikasi-sebelum-promosi** (`python scripts/verify_before_promotion.py`) — membandingkan kandidat (`challenger`) vs versi aktif (`champion`) pada sampel data production REAL. Wajib: tidak ada exception/NaN pada kandidat. Verdict `pass`/`flag` (delta churn_rate vs ambang provisional) dicetak — TIDAK auto-blocking, cuma masukan untuk keputusan manual berikutnya.
+3. **Tinjau verdict secara sadar** (operator) — putuskan lanjut promosi atau tidak berdasarkan angka Langkah 2, bukan otomatis.
+4. Pindahkan alias `champion` ke versi kandidat lewat `churn_prediction.inference.registry.set_active_alias(version, alias="champion")` — atau `python scripts/promote_active_alias.py <version> champion`.
+5. Batch DAG dan real-time API otomatis memakai versi baru pada pemanggilan `load_active_model()` berikutnya, TANPA perlu redeploy/restart/ubah kode (konsisten prinsip rollback = ganti penanda versi, `CLAUDE.md`) — diverifikasi sungguhan Milestone 2.8 (`batch_scoring_flow()` run nyata, lihat `milestones/2.8-validasi-artifact-promosi-rollback/logs.md`).
 
 ## 6. Rollback
 
-Sama seperti promosi (langkah 3 di atas), tapi `version` diarahkan ke versi sebelumnya. Tidak ada mekanisme rollback terpisah — rollback DAN promosi adalah operasi yang sama persis (pindah alias), sesuai prinsip arsitektur Bagian 5.2.
+Sama seperti promosi Langkah 4 di atas, tapi `version` diarahkan ke versi sebelumnya (mis. `python scripts/promote_active_alias.py 1 champion`). Tidak ada mekanisme rollback terpisah — rollback DAN promosi adalah operasi yang sama persis (pindah alias), sesuai prinsip arsitektur Bagian 5.2. Langkah 1-3 (sanity check, verifikasi-sebelum-promosi) TIDAK relevan untuk rollback — versi yang di-rollback SUDAH pernah lolos gerbang itu saat pertama kali dipromosikan.
+
+Diverifikasi sungguhan Milestone 2.8: promosi ke versi kandidat (threshold uji 0.5) → run DAG nyata → `predictions.batch_predictions.model_version` berubah otomatis → rollback ke versi 1 → run DAG lagi → `model_version` kembali seperti semula. Kecepatan: hitungan detik (`set_active_alias()` + run DAG berikutnya), jauh lebih cepat dari hipotesis redeploy penuh.
 
 ## 7. Riwayat Versi
 
 | Versi | Sumber | Status |
 |---|---|---|
-| 1 | `artifacs/model/model_final.joblib` + `artifacs/proprocessor/preprocessor.joblib` (artifact asli Data Scientist, M1.1) | `champion` (aktif) sejak Milestone 2.1 |
+| 1 | `artifacs/model/model_final.joblib` + `artifacs/proprocessor/preprocessor.joblib` (artifact asli Data Scientist, M1.1), threshold 0.6238 (produksi) | `champion` (aktif) sejak Milestone 2.1 |
+| 2 | Model+preprocessor SAMA seperti versi 1 (TIDAK training ulang), threshold 0.5 (UJI, `scripts/register_candidate_model.py`) | `challenger` — kandidat uji Milestone 2.8 untuk memverifikasi mekanisme promosi/rollback/verifikasi-sebelum-promosi. Sempat jadi `champion` sesaat (uji coba terkontrol promosi), di-rollback ke versi 1. **BUKAN rekomendasi produksi** — threshold 0.5 murni artifisial untuk pengujian. |
