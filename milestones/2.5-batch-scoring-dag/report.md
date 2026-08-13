@@ -19,7 +19,7 @@ Dua keputusan awal dikonfirmasi user (append-only, skala penuh dengan verifikasi
 
 ## Keputusan Final
 
-Lihat [`decisions.md`](./decisions.md) — 7 keputusan: (1) tabel append-only + role least-privilege baru, (2) skala penuh tanpa jadwal rutin aktif, (3) `predict_active()` dengan `model_version` konkret bukan alias, (4) sentralisasi `column_mapping.py`, (5) RLS Supabase butuh policy eksplisit (temuan+perbaikan), (6) bug lintas-platform path MLflow (temuan+perbaikan, BUKAN keterbatasan diterima — ada mitigasi konkret), (7) Prefect Managed + LightGBM (keterbatasan DITERIMA sadar, dicatat `docs/keterbatasan-diterima.md` KD-1). Plus catatan salah ketik "Milestone 2.6" di dokumen sumber (seharusnya M2.7).
+Lihat [`decisions.md`](./decisions.md) — 8 keputusan: (1) tabel append-only + role least-privilege baru, (2) skala penuh tanpa jadwal rutin aktif, (3) `predict_active()` dengan `model_version` konkret bukan alias, (4) sentralisasi `column_mapping.py`, (5) RLS Supabase butuh policy eksplisit (temuan+perbaikan), (6) bug lintas-platform path MLflow (temuan+perbaikan, BUKAN keterbatasan diterima — ada mitigasi konkret), (7) Prefect Managed + LightGBM (keterbatasan DITERIMA sadar, dicatat `docs/keterbatasan-diterima.md` KD-1), (8) follow-up 2026-08-13 — KD-1 diatasi untuk kebutuhan run terjadwal lewat GitHub Actions (`batch-scoring.yml`), Managed sendiri tetap terbatas. Plus catatan salah ketik "Milestone 2.6" di dokumen sumber (seharusnya M2.7).
 
 ## Perubahan dari Plan Awal
 
@@ -29,13 +29,14 @@ Lihat [`decisions.md`](./decisions.md) — 7 keputusan: (1) tabel append-only + 
 
 ## Keterbatasan dan Item Terbuka
 
-- **Prefect Managed tidak bisa menjalankan task yang memuat model LightGBM** (`docs/keterbatasan-diterima.md` KD-1) — berdampak ke Milestone 2.6 (kalau ada task serupa), 2.7 (CI/CD, kalau runner-nya Managed-based), dan 2.8 (sanity check artifact yang memuat model). Perlu jadi pertimbangan eksplisit saat milestone-milestone itu dirancang, bukan ditemukan ulang dari nol.
+- **Prefect Managed tidak bisa menjalankan task yang memuat model LightGBM** (`docs/keterbatasan-diterima.md` KD-1) — berdampak ke Milestone 2.6 (kalau ada task serupa), 2.7 (CI/CD, kalau runner-nya Managed-based), dan 2.8 (sanity check artifact yang memuat model). **Update 2026-08-13 (Checkpoint 5):** untuk kebutuhan RUN TERJADWAL/OTOMATIS (bukan Managed itu sendiri, yang tetap terbatas), sudah ada jalur mitigasi terverifikasi — `.github/workflows/batch-scoring.yml` (GitHub Actions, `ubuntu-latest`) menjalankan `batch_scoring_flow()` langsung, terbukti sukses memuat LightGBM (run [31694778869](https://github.com/Ardiyanto24/telco-churn-mlops/actions/runs/31694778869)). Lihat `decisions.md` Keputusan #8.
 - **Mitigasi bug path MLflow (`.as_posix()`) belum diverifikasi menutup 100% kasus** — registrasi versi model berikutnya (M2.8) WAJIB diverifikasi ulang lintas-platform, bukan diasumsikan aman selamanya.
 - **Waktu run skala penuh (~9.2 menit) jadi baseline nyata pertama** untuk Milestone 2.6 (Isolasi Beban) — jauh dari estimasi awal, harus dipakai sebagai angka nyata bukan tebakan lama.
-- **Jadwal rutin produksi belum diaktifkan** — trigger sama seperti M2.3/M2.4 (generator/data harian asli aktif).
+- **Jadwal rutin produksi belum diaktifkan** — trigger sama seperti M2.3/M2.4 (generator/data harian asli aktif). **Update 2026-08-13:** pemicu ini sebagian sudah terjadi (`telco_customers_synthetic` sudah berisi 1.000 baris dari satu run generator, `synthetic_generation_runs.created_at=2026-08-13 09:57:27 UTC`, di luar sesi manapun yang tercatat) — TAPI `batch_scoring_flow()` masih hardcode membaca `telco_customers_source` (statis, tidak berubah), jadi cutover ke tabel synthetic (KT-1 Fase 2) masih keputusan terbuka terpisah, sengaja BELUM diaktifkan sebagai cron (lihat `decisions.md` Keputusan #8) untuk menghindari prediksi duplikat identik.
 
 ## Follow-up
 
 - **Milestone 2.6 (Isolasi Beban terhadap PostgreSQL)** siap dikerjakan dengan baseline nyata dari milestone ini (waktu extract ~45s, score ~4m25s, write ~4m1s untuk 594rb baris) dan M2.3 (N/A, tidak ada beban refresh feature store).
 - **Milestone 2.7 (CI/CD)** perlu mempertimbangkan keterbatasan KD-1 saat merancang runner CI — kalau CI juga berbasis Managed/container minimal serupa, gerbang unit test yang memuat model (`test_predictor.py`, dst.) berisiko kena masalah sama.
 - **Milestone 2.8** perlu baca `docs/keterbatasan-diterima.md` KD-1 sebelum merancang mekanisme sanity-check artifact otomatis (kalau dijalankan di infra serupa Managed), dan perlu re-verifikasi mitigasi path MLflow (Keputusan #6) setiap registrasi versi baru.
+- **Cutover Fase 2 (KT-1)** — belum dikerjakan milestone manapun: `SOURCE_TABLE` di `batch_scoring.py` hardcode `telco_customers_source`, role `batch_reader` tidak punya izin baca `telco_customers_synthetic` (dikonfirmasi `permission denied` saat verifikasi 2026-08-13), dan tidak ada mekanisme event/trigger untuk data baru. KD-1 (jalur eksekusi) sudah tidak jadi blocker untuk cutover ini kalau/ketika diputuskan — 3 blocker lain di atas tetap terbuka.

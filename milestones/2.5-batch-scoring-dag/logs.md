@@ -42,3 +42,25 @@
 **Setelah baseline direset + fixture diperbaiki, run Managed KEEMPAT** (`limit=1000`) dipicu ulang untuk memastikan tidak ada regresi baru dari perbaikan test — hasil konsisten dengan temuan poin 6 (gagal di `libgomp.so.1`, sesuai ekspektasi, diterima).
 
 **Selesai, commit:** `a3eb681` (feat, deploy script+test), `68f870a` (fix, path artifact), `b0a455e` (docs, keterbatasan-diterima.md).
+
+## Checkpoint 5 (Follow-up) — Mengatasi KD-1: batch scoring via GitHub Actions
+
+**Mulai:** 2026-08-13, di luar checkpoint asli milestone ini -- dipicu sesi terpisah (cek progress proyek) yang menemukan `telco_customers_synthetic` sudah berisi 1.000 baris (generator sudah pernah dijalankan user di luar sesi manapun yang tercatat, `synthetic_generation_runs.created_at=2026-08-13 09:57:27 UTC`, `customer_key` juga sudah ada di skemanya) -- membuat pertanyaan "kenapa belum bisa auto-predict data baru" relevan nyata. Analisis menemukan 4 blocker independen; user memilih membahas KD-1 (satu dari empat) dulu.
+
+**Opsi diajukan (AskUserQuestion, di sesi lanjutan):** (A) jalankan scoring via GitHub Actions cron, Prefect Cloud murni untuk tracking; (B) Prefect push work pool + custom Docker image ber-libgomp; (C) self-host Prefect worker (opsi yang sudah ditolak di Keputusan #7). User memilih **A**.
+
+**Klarifikasi tambahan sebelum implementasi:** karena `batch_scoring_flow()` masih membaca `telco_customers_source` statis, mengaktifkan cron sekarang akan reproduksi pola yang ditolak Keputusan #2 (prediksi duplikat identik). Ditanyakan ke user via `AskUserQuestion` -- dipilih **"mekanisme dulu, manual trigger (workflow_dispatch)"**, cron sungguhan ditunda sampai keputusan cutover Fase 2 diambil.
+
+**Implementasi:**
+1. `orchestration/flows/batch_scoring.py` -- blok `__main__` ditambah `BATCH_SCORING_LIMIT` (env var, opsional) supaya run terkontrol bisa dipicu tanpa argumen CLI.
+2. `.github/workflows/batch-scoring.yml` dibuat baru -- `workflow_dispatch` (input `limit`, default `1000`), `runs-on: ubuntu-latest`, `pip install -e ".[orchestration]"`, `python -m orchestration.flows.batch_scoring` langsung (bukan lewat deployment Prefect Managed). Env: kredensial sama seperti job `integration-tests` di `test.yml` (GitHub Secrets sudah ada sejak M2.7) + `PREFECT_API_KEY`/`PREFECT_API_URL` untuk tracking.
+3. `orchestration/deploy_batch_scoring.py` -- docstring ditambah catatan silang ke jalur baru ini, supaya pembaca tidak salah kira "tanpa cron" berarti "tidak bisa dites otomatis sama sekali".
+4. Verifikasi lokal: `.venv/Scripts/python.exe -c "import orchestration.flows.batch_scoring"` -- resolve OK (namespace package + `pip install -e .` churn_prediction, pola sama `pythonpath=["."]` M2.7).
+5. Commit `039bf0b` (fix) -- push ke `origin/main` (konfirmasi eksplisit diminta via `AskUserQuestion` -- dikonfirmasi) -- dibutuhkan supaya `workflow_dispatch` bisa mengenali workflow file di GitHub.
+6. Trigger sungguhan: `gh workflow run batch-scoring.yml -f limit=1000 --ref main` → run [31694778869](https://github.com/Ardiyanto24/telco-churn-mlops/actions/runs/31694778869), diawasi via `gh run watch` → **SUCCESS, 1m40s**. Log kunci: `extract_raw_data` 1000 baris, gerbang kualitas PASS, `score_batch` **"Scored 1000 baris, model_version=1"** (LightGBM dimuat sukses, TIDAK ADA `libgomp.so.1`), `write_predictions` 1000 baris (`batch_run_id=ca721f01-acdd-4dc2-931f-3497242b7137`).
+7. Verifikasi silang database: query langsung `predictions.batch_predictions WHERE batch_run_id='ca721f01-...'` → 1000 baris, 0 lineage NULL (`model_version='1'`, `model_alias='champion'`, `flow_run_id` UUID valid).
+8. Verifikasi silang Prefect Cloud: `client.read_flow_run(<flow_run_id>)` via `prefect.client.orchestration.get_client()` → nama run `boisterous-wildcat`, `state_name='Completed'`, `start_time`/`end_time` valid -- membuktikan tracking Prefect Cloud tetap utuh meski trigger dari GitHub Actions, bukan deployment Prefect.
+
+**Hasil:** KD-1 diatasi untuk kebutuhan run terjadwal -- ada jalur eksekusi (`batch-scoring.yml`) yang terbukti sukses memuat+scoring model LightGBM tanpa menyentuh Prefect Managed work pool sama sekali. KD-1 itu sendiri (keterbatasan Managed) TIDAK berubah/tidak tertutup -- dicatat sebagai update di `docs/keterbatasan-diterima.md`, bukan entri ditutup.
+
+**Selesai, commit:** `039bf0b` (fix, workflow+entrypoint), commit dokumentasi menyusul (docs, checkpoint ini).
