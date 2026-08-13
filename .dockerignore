@@ -1,0 +1,16 @@
+.git
+.env
+artifacs/
+mlruns/
+mlflow-data/
+tests/
+notebook/
+docs/
+milestones/
+build/
+airflow/
+infra/
+__pycache__/
+.venv/
+*.pyc
+.pytest_cache/
