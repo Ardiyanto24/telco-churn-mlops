@@ -27,6 +27,19 @@ Jalur komunikasi resmi perubahan skema sumber PostgreSQL/Supabase (Milestone 1.6
 
 ## Entries
 
+### v2 — Klarifikasi kolom `churn` di `telco_customers_synthetic` (2026-08-13)
+
+**Klasifikasi:** NON-BREAKING (klarifikasi semantik murni, TIDAK mengubah skema database sungguhan maupun `raw_schema.py`).
+
+**Milestone terdampak:** Tidak ada kode yang berubah — cuma dokumentasi (`raw-schema-contract.md`, `docs/keputusan-tertunda.md` KT-4). Relevan sebagai konteks untuk Milestone 3.x (drift/performance monitoring) begitu dikerjakan.
+
+**Isi:**
+- Dikonfirmasi user: kolom `churn` di `telco_customers_synthetic` (dan `telco_customers_source`) TIDAK diminta dihapus dari skema generator, meski secara desain terlihat janggal untuk pelanggan yang baru disimulasikan. Dipertahankan SENGAJA sebagai ground truth untuk evaluasi model mendatang (M3.x).
+- Dikonfirmasi ulang (bukan asumsi): `churn`/`Churn` tidak pernah termasuk kontrak 19 kolom fitur (`RAW_PASCAL_TO_SNAKE`, `raw_schema.py`) sejak Milestone 1.3 — kolom ini TIDAK berdampak ke pipeline batch/inference apa pun, terlepas ada atau tidaknya di tabel sumber.
+- Keputusan generator MENGISI vs MENGOSONGKAN nilai `churn` untuk pelanggan yang statusnya belum diketahui TETAP terbuka, di luar cakupan kontrak ini (keputusan desain generator sendiri).
+
+Lihat `docs/keputusan-tertunda.md` KT-4 (catatan tambahan) untuk detail lengkap.
+
 ### v1 — Kontrak awal (2026-08-12)
 
 **Klasifikasi:** Baseline (bukan breaking/non-breaking — ini titik awal kontrak, tidak ada versi sebelumnya untuk dibandingkan).

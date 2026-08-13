@@ -89,6 +89,8 @@ Primary key: `synthetic_id` (uuid, NOT NULL). Foreign key: `generation_id` → `
 
 **GAP TERBUKA (lihat Bagian 4 dan KT-4, `docs/keputusan-tertunda.md`):** tabel ini TIDAK punya kolom identitas pelanggan yang stabil lintas baris (`synthetic_id` unik PER BARIS, bukan per pelanggan). Wajib ditambahkan sebelum generator diaktifkan — lihat Bagian 4.
 
+**Kolom `churn` SENGAJA DIPERTAHANKAN (keputusan 2026-08-13, lihat KT-4):** meski secara desain terlihat janggal (pelanggan yang baru disimulasikan biasanya belum "diketahui" status churn-nya — itu justru yang diprediksi sistem ini), kolom ini TIDAK diminta dihapus dari skema generator. Dipertahankan sengaja sebagai **ground truth untuk evaluasi model** di masa depan (mis. drift/performance monitoring Milestone 3.x). **TIDAK berdampak ke pipeline batch/inference manapun** — `churn` sudah dikecualikan eksplisit dari kontrak 19 kolom fitur sejak Milestone 1.3 (lihat Bagian 2.2 barisnya sendiri di atas vs `RAW_PASCAL_TO_SNAKE`/`raw_schema.py`, keduanya tidak pernah menyertakan `churn`). Apakah generator harus mengisi nilai pasti atau mengosongkan kolom ini untuk pelanggan yang statusnya belum diketahui tetap keputusan desain generator sendiri, di luar cakupan dokumen ini.
+
 ### 2.3 `synthetic_generation_runs` (metadata tiap batch generasi — 0 baris, belum pernah jalan)
 
 | Kolom | Tipe PostgreSQL | Nullable | Kategori/Rentang Valid |

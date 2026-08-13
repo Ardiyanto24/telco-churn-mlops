@@ -60,6 +60,8 @@ File ini mencatat keputusan yang identifikasinya sudah muncul saat pengerjaan su
 
 **Pemicu peninjauan:** Sebelum data generator pertama kali diaktifkan/diuji (trigger sama dengan Fase 2 kontrak dua-fase KT-1 — "setelah seluruh sistem MLOps ini selesai dibangun").
 
+**Catatan tambahan (2026-08-13) — kolom `churn` SENGAJA DIPERTAHANKAN, bukan dihapus:** Saat koordinasi soal `customer_key` di atas, ditemukan juga bahwa `telco_customers_synthetic` (dan `telco_customers_source`) punya kolom `churn`/`Churn` — hasil akhir yang secara desain terlihat aneh ada di tabel pelanggan yang BARU disimulasikan (statusnya harusnya belum diketahui, itu justru yang mau diprediksi sistem ini). Diverifikasi TIDAK berdampak ke pipeline ini sama sekali — `churn` sudah dikecualikan eksplisit dari kontrak 19 kolom fitur sejak Milestone 1.3 (`src/churn_prediction/schema/raw_schema.py`, `column_mapping.py::RAW_PASCAL_TO_SNAKE`), tidak pernah di-SELECT atau dipakai model. User memutuskan **TIDAK meminta kolom ini dihapus dari skema generator** — dipertahankan sengaja sebagai **ground truth untuk evaluasi model di masa depan** (mis. drift/performance monitoring Milestone 3.x, membandingkan prediksi vs hasil sebenarnya begitu waktu berjalan). Pertanyaan APAKAH generator harus mengisi kolom ini dengan nilai pasti untuk pelanggan yang baru disimulasikan (vs mengosongkannya sampai status sebenarnya diketahui) tetap murni keputusan desain generator, di luar cakupan sistem ini — tidak diputuskan di sini.
+
 ---
 
 ## KT-5 — Verdict "latensi baca wajar/tidak untuk real-time API" saat batch DAG jalan bersamaan
