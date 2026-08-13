@@ -80,3 +80,14 @@ orchestration = ["prefect==3.8.2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+# `orchestration/` (top-level, bukan di src/) tidak pernah di-pip-install --
+# `pytest tests/` (dipanggil langsung, BUKAN `python -m pytest`) tidak
+# otomatis menaruh root repo di sys.path, beda dari `python -m pytest` yang
+# implisit menambahkannya. Tanpa ini, `from orchestration.flows import
+# batch_scoring` (tests/orchestration/test_batch_scoring.py) gagal
+# ModuleNotFoundError -- reproducible lokal juga, bukan cuma CI. Ditemukan
+# Milestone 2.7 saat verifikasi run CI sungguhan pertama kali berhasil lolos
+# instalasi dependency.
+pythonpath = ["."]
