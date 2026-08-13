@@ -28,21 +28,38 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ENV_PATH = REPO_ROOT / ".env"
 
 
-def _load_env_var(name):
-    value = os.environ.get(name)
-    if value:
-        return value
+def _load_dotenv_into_environ():
+    """Muat SELURUH `.env` ke `os.environ` (`setdefault` -- OS env yang sudah
+    ada tetap diutamakan), bukan cuma 3 var yang test file ini pakai
+    langsung. `batch_scoring_flow()` yang dites di sini butuh var LAIN juga
+    (`QUALITY_GATE_DB_URL`, `MLFLOW_TRACKING_URI`, kredensial S3) yang tidak
+    pernah dibaca test file ini secara eksplisit -- versi sebelumnya cuma
+    menjadikan `SUPABASE_DB_URL`/`BATCH_READER_DB_URL`/`BATCH_WRITER_DB_URL`
+    variabel LOKAL modul test, tidak pernah ditulis ke `os.environ`, jadi
+    kode yang dites (baca `os.environ.get(...)` langsung) tetap tidak
+    melihatnya kecuali shell yang menjalankan pytest kebetulan sudah
+    punya SEMUA var ini di level OS. Bug laten ditemukan Milestone 2.6 saat
+    verifikasi full suite di shell tanpa env var ter-set sama sekali --
+    pytestmark skip-condition lolos (baca dari .env berhasil) tapi
+    `flow_result` fixture gagal `RuntimeError` di dalam, satu var demi satu
+    var. Pola sama `orchestration/deploy_batch_scoring.py::_load_env()`.
+    """
     if not ENV_PATH.exists():
-        return None
+        return
     with open(ENV_PATH, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             k, v = line.split("=", 1)
-            if k.strip() == name:
-                return v.strip().strip('"').strip("'")
-    return None
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_dotenv_into_environ()
+
+
+def _load_env_var(name):
+    return os.environ.get(name)
 
 
 SUPABASE_DB_URL = _load_env_var("SUPABASE_DB_URL")
