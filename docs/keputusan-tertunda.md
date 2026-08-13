@@ -89,3 +89,17 @@ Mitigasi paling menyasar akar masalah ini adalah mengubah `write_predictions` da
 **Pemicu peninjauan:** Trafik baca konkuren nyata mulai ada (generator aktif DAN/ATAU real-time API/dashboard M3.x live) DAN degradasi serupa terkonfirmasi berdampak nyata (bukan cuma simulasi) -- saat itu, evaluasi ulang trade-off commit bertahap vs all-or-nothing dengan konteks nyata (mis. mungkin cukup commit di 2-3 chunk besar, bukan banyak chunk kecil, untuk menyeimbangkan keduanya).
 
 **Referensi:** `milestones/2.6-isolasi-beban-postgresql/logs.md` (angka pengukuran lengkap per fase).
+
+---
+
+## KT-7 — Verifikasi parity CI penuh terhadap real-time API SUNGGUHAN
+
+**Muncul saat:** Milestone 2.7, Checkpoint 2 (Gate 3 -- verifikasi parity otomatis).
+
+**Konteks:** KK Milestone 2.7 meminta gerbang CI yang memverifikasi "jalur batch dan real-time (disimulasikan)" menghasilkan output identik. Real-time API (M3.x) belum dibangun sama sekali -- tidak ada jalur kedua sungguhan untuk dibandingkan. Gate 3 M2.7 mengaktifkan test M2.5 yang sudah ada (`tests/orchestration/test_batch_scoring.py::test_batch_predictions_match_direct_predict_active_call`) sebagai gerbang CI sungguhan -- test ini membandingkan hasil DAG batch (tersimpan di DB) vs pemanggilan LANGSUNG `predict_active()`, proxy terbaik yang tersedia SEKARANG (satu-satunya kode "real-time" yang ada). Diverifikasi juga lewat uji coba terkontrol (sengaja membuat `score_batch` menyimpang dari `predict_active()`) -- gerbang terbukti menangkap penyimpangan nyata.
+
+**Kenapa belum diputuskan sekarang:** Test ini TIDAK BISA menangkap bug yang nanti muncul di kode M3.x sendiri (mis. kesalahan pemetaan skema request ke skema data mentah) -- karena kode itu belum ditulis, tidak ada yang bisa dites. Verifikasi parity PENUH (batch vs real-time API yang benar-benar dideploy, menerima request HTTP sungguhan) baru bisa dibangun setelah M3.x punya service yang bisa dipanggil.
+
+**Pemicu peninjauan:** M3.x (`mlops-03-deployment-observability.md`) mulai membangun real-time API sungguhan -- saat itu, gerbang parity CI perlu diperluas untuk memanggil endpoint HTTP sungguhan (bukan cuma `predict_active()` langsung), dan `tests/orchestration/test_batch_scoring.py`'s test parity yang sudah ada bisa jadi dasar/pola, bukan digantikan.
+
+**Referensi:** `milestones/2.7-cicd-verifikasi-parity/decisions.md`, `milestones/2.5-batch-scoring-dag/decisions.md` Keputusan #3 (catatan salah ketik dokumen sumber "verifikasi otomatis dibangun di Milestone 2.6" seharusnya 2.7 -- sudah dikonfirmasi benar M2.7 di milestone ini).
