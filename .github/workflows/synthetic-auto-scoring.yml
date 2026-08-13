@@ -1,0 +1,45 @@
+name: synthetic-auto-scoring
+
+# Trigger EVENT-DRIVEN -- dipicu infra/sql/2.9_synthetic_trigger.sql
+# (trigger Postgres AFTER INSERT/UPDATE synthetic_generation_runs WHEN
+# status='completed', memanggil GitHub repository_dispatch lewat pg_net).
+# TIDAK ADA workflow_dispatch/schedule di sini secara sengaja -- beda dari
+# batch-scoring.yml (KD-1, manual-only untuk telco_customers_source) --
+# workflow ini murni reaktif terhadap event generator sungguhan. Lihat
+# milestones/2.9-otomatisasi-scoring-data-sintesis/decisions.md Keputusan #1/#6.
+on:
+  repository_dispatch:
+    types: [synthetic-data-arrived]
+
+jobs:
+  synthetic-auto-scoring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package + orchestration dependencies
+        run: pip install -e ".[orchestration]"
+
+      # Sama pola batch-scoring.yml (KD-1): python -m langsung, BUKAN lewat
+      # deployment Prefect Managed (score_batch memuat LightGBM, ubuntu-latest
+      # terbukti tidak kena libgomp.so.1). BATCH_SOURCE_TABLE/BATCH_GENERATION_ID
+      # dibaca __main__ batch_scoring.py (M2.9) dari client_payload event ini.
+      - name: Run batch_scoring_flow() untuk generation_id yang baru selesai
+        env:
+          BATCH_SOURCE_TABLE: telco_customers_synthetic
+          BATCH_GENERATION_ID: ${{ github.event.client_payload.generation_id }}
+          BATCH_READER_DB_URL: ${{ secrets.BATCH_READER_DB_URL }}
+          BATCH_WRITER_DB_URL: ${{ secrets.BATCH_WRITER_DB_URL }}
+          QUALITY_GATE_DB_URL: ${{ secrets.QUALITY_GATE_DB_URL }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          MLFLOW_S3_ENDPOINT_URL: ${{ secrets.MLFLOW_S3_ENDPOINT_URL }}
+          MLFLOW_ARTIFACT_BUCKET: ${{ secrets.MLFLOW_ARTIFACT_BUCKET }}
+          PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }}
+          PREFECT_API_URL: ${{ secrets.PREFECT_API_URL }}
+        run: python -m orchestration.flows.batch_scoring
