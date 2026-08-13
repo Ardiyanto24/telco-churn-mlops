@@ -59,3 +59,33 @@ File ini mencatat keputusan yang identifikasinya sudah muncul saat pengerjaan su
 **Kenapa belum diputuskan/dikerjakan sekarang:** Migrasi skema database (menambah kolom ke tabel Supabase) di luar cakupan implementasi Milestone 1.6 (sifatnya observasional+dokumentasi, sama seperti Milestone 1.1) — dan lebih jauh lagi, di luar cakupan seluruh sistem MLOps ini (implementasi generator itu sendiri adalah "given", di luar cakupan per `mlops-01-productionization.md`). Perlu koordinasi dengan pemilik/pembangun sistem generator (di proyek solo ini, user sendiri di peran berbeda) untuk menentukan bentuk `customer_key` yang tepat (mis. hash dari kombinasi atribut, UUID terpisah yang di-generate sekali per "pelanggan simulasi", dst — belum ada opsi yang dieksplorasi, murni gap yang teridentifikasi).
 
 **Pemicu peninjauan:** Sebelum data generator pertama kali diaktifkan/diuji (trigger sama dengan Fase 2 kontrak dua-fase KT-1 — "setelah seluruh sistem MLOps ini selesai dibangun").
+
+---
+
+## KT-5 — Verdict "latensi baca wajar/tidak untuk real-time API" saat batch DAG jalan bersamaan
+
+**Muncul saat:** Milestone 2.6, Checkpoint 3-4 (pengukuran beban PostgreSQL saat `batch_scoring_flow()` jalan skala penuh).
+
+**Konteks:** KK1 Milestone 2.6 (`docs/02-implementation-plan/mlops-02-pipeline-orchestration.md`) meminta bukti "latensi baca bergaya real-time API masih dalam rentang wajar" saat job batch (M2.5) jalan bersamaan. Karena real-time API belum dibangun (M3.x belum mulai) dan tidak ada feature store (M2.2, DITUTUP — seluruh 29 fitur INSTANT), tidak ada SLA nyata atau pola trafik produksi sungguhan yang bisa dijadikan acuan pasti untuk kata "wajar". Milestone 2.6 tetap membangun harness pengukuran (`orchestration/load_test/concurrent_readers.py`) dan mengambil angka nyata — baseline terisolasi vs saat job batch jalan bersamaan, untuk dua proxy consumer (resolusi alias model via `registry.resolve_alias_version()`, dan query agregat gaya dashboard monitoring ke `predictions.batch_predictions`) — tapi TIDAK menyimpulkan verdict pass/fail formal dari angka itu.
+
+**Kenapa belum diputuskan sekarang:** Menetapkan ambang batas (relatif maupun absolut) tanpa SLA nyata berarti menebak — persis pola yang dilarang eksplisit oleh `CLAUDE.md`/`AGENT.md` Bagian "Batas Implementasi Saat Ini" ("jangan memilih... threshold, SLA... yang dokumen arsitektur sengaja biarkan terbuka tanpa mengikuti workflow keputusan"). Real-time API (M3.x) adalah pemilik sah kebutuhan latensi ini begitu benar-benar dibangun dan diukur dengan trafik nyata (bukan simulasi/proxy dari milestone lain).
+
+**Pemicu peninjauan:** M3.x (`mlops-03-deployment-observability.md`) mulai dikerjakan, khususnya saat real-time API punya kontrak latensi/SLA nyata yang bisa dijadikan acuan — atau lebih awal jika trafik konkurensi nyata (generator aktif + real-time API live) membuat pertanyaan ini mendesak sebelum M3.x formal dimulai.
+
+**Data yang sudah tersedia sebagai dasar keputusan nanti:** Angka baseline vs bersamaan (p50/p95 kedua proxy consumer, delta absolut/persentase) dan analisis korelasi fase flow — lihat `milestones/2.6-isolasi-beban-postgresql/logs.md` dan `decisions.md`.
+
+---
+
+## KT-6 — Apakah `write_predictions` perlu diubah dari transaksi tunggal ke commit bertahap
+
+**Muncul saat:** Milestone 2.6, Checkpoint 3 (analisis korelasi fase, hasil pengukuran nyata).
+
+**Konteks:** Pengukuran beban konkuren M2.6 menemukan Consumer B (proxy query agregat gaya dashboard monitoring ke `predictions.batch_predictions`) mengalami degradasi p95 nyata (+210% dibanding baseline terisolasi, dari ~196ms ke ~607ms untuk keseluruhan run, memuncak ~767ms selama fase `write`) yang berkorelasi jelas dan spesifik dengan fase `write_predictions` M2.5 -- task yang menulis 594.194 baris dalam SATU transaksi Postgres panjang (~4 menit) ke tabel yang sama persis dibaca Consumer B. Consumer A (resolusi alias model, schema `mlflow`) TIDAK menunjukkan degradasi berarti (delta dalam rentang noise) -- temuan ini spesifik ke pola akses `predictions.batch_predictions`, bukan beban Postgres secara umum.
+
+Mitigasi paling menyasar akar masalah ini adalah mengubah `write_predictions` dari satu transaksi besar (all-or-nothing) menjadi commit bertahap per-chunk (mis. tiap 10.000-50.000 baris) -- ini akan memperpendek jendela waktu lock/kontensi ditahan, TAPI mengorbankan jaminan all-or-nothing yang jadi keputusan sadar M2.5 (Keputusan #1: rollback penuh kalau gagal di tengah, demi konsistensi data) -- kegagalan di tengah proses commit bertahap bisa meninggalkan sebagian chunk ter-commit, sebagian tidak, yang justru melanggar prinsip "tidak ada data tidak konsisten" (KK2 M2.5).
+
+**Kenapa belum diputuskan sekarang:** Ini trade-off nontrivial terhadap keputusan M2.5 yang sudah final (bukan detail implementasi kecil), dan saat ini **belum ada trafik baca konkuren nyata** yang benar-benar dirugikan (generator belum aktif, real-time API/dashboard M3.x belum dibangun) -- mengubah desain sekarang berarti menukar jaminan korektnes yang sudah terbukti demi mengatasi kontensi yang baru terbukti berdampak di kondisi lab/simulasi, bukan produksi nyata.
+
+**Pemicu peninjauan:** Trafik baca konkuren nyata mulai ada (generator aktif DAN/ATAU real-time API/dashboard M3.x live) DAN degradasi serupa terkonfirmasi berdampak nyata (bukan cuma simulasi) -- saat itu, evaluasi ulang trade-off commit bertahap vs all-or-nothing dengan konteks nyata (mis. mungkin cukup commit di 2-3 chunk besar, bukan banyak chunk kecil, untuk menyeimbangkan keduanya).
+
+**Referensi:** `milestones/2.6-isolasi-beban-postgresql/logs.md` (angka pengukuran lengkap per fase).
