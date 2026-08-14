@@ -51,6 +51,7 @@ dependency eksternal yang down) -- crash-loop tak berguna.
 
 import asyncio
 import contextlib
+import logging
 import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -64,6 +65,8 @@ from churn_prediction.inference import registry
 from churn_prediction.inference.constants import ACTIVE_ALIAS
 from churn_prediction.inference.predictor import predict_active
 from churn_prediction.schema.request_schema import ChurnPredictionRequest
+
+logger = logging.getLogger(__name__)
 
 # Tidak ada SLA formal (KT-5, docs/keputusan-tertunda.md) -- 30 detik dipilih
 # cukup cepat untuk "rentang waktu yang wajar" (KK1 M3.4) tanpa boros query
@@ -96,6 +99,7 @@ async def _refresh_once(app: FastAPI, alias: str = ACTIVE_ALIAS) -> None:
     try:
         resolved_version = await asyncio.to_thread(registry.resolve_alias_version, alias)
     except Exception as exc:  # noqa: BLE001 -- boundary refresh: jangan crash background task
+        logger.warning("Gagal cek versi alias %r: %r", alias, exc)
         if current.model is None:
             app.state.loaded = LoadedModel(model=None, model_version=None, load_error=str(exc))
         # else: model lama masih ada -- PERTAHANKAN, jangan downgrade ke None.
@@ -104,10 +108,18 @@ async def _refresh_once(app: FastAPI, alias: str = ACTIVE_ALIAS) -> None:
     if current.model is not None and current.model_version == resolved_version:
         return  # tidak ada perubahan -- skip reload (hemat fetch S3)
 
+    logger.info(
+        "Versi alias %r berubah/pertama kali (%r -> %r), reload model...",
+        alias,
+        current.model_version,
+        resolved_version,
+    )
     try:
         model = await asyncio.to_thread(registry.load_active_model, alias)
         app.state.loaded = LoadedModel(model=model, model_version=resolved_version, load_error=None)
+        logger.info("Reload model alias %r selesai -> versi %r", alias, resolved_version)
     except Exception as exc:  # noqa: BLE001
+        logger.warning("Gagal reload model alias %r ke versi %r: %r", alias, resolved_version, exc)
         if current.model is None:
             app.state.loaded = LoadedModel(model=None, model_version=None, load_error=str(exc))
         # else: reload gagal tapi model lama masih ada -- PERTAHANKAN.

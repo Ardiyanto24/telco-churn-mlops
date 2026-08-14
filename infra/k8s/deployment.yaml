@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
         - name: churn-api
-          image: churn-inference:m3.3
+          image: churn-inference:m3.4
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
