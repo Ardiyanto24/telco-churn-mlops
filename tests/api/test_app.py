@@ -8,6 +8,7 @@ secara nyata via container sungguhan (lihat
 milestones/3.2-real-time-inference-api/logs.md Checkpoint 2).
 """
 
+import asyncio
 from unittest.mock import patch
 
 import pandas as pd
@@ -15,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from churn_prediction.api import app as app_module
-from churn_prediction.api.app import app
+from churn_prediction.api.app import LoadedModel, app
 from churn_prediction.inference import registry
 
 
@@ -146,3 +147,54 @@ def test_readyz_503_when_model_fails_to_load():
     body = response.json()
     assert body["error"]["code"] == "model_unavailable"
     assert "registry unreachable" in body["error"]["message"]
+
+
+# ── _refresh_once() -- Milestone 3.4 (deteksi versi tanpa restart) ─────────
+# Diuji LANGSUNG (bukan lewat TestClient/asyncio.sleep) supaya tidak perlu
+# menunggu interval polling sungguhan -- lihat decisions.md Keputusan #3.
+
+
+def test_refresh_once_reloads_when_version_changed():
+    app.state.loaded = LoadedModel(model="old-model-obj", model_version="1", load_error=None)
+    with (
+        patch.object(registry, "resolve_alias_version", return_value="2"),
+        patch.object(registry, "load_active_model", return_value="new-model-obj") as spy_load,
+    ):
+        asyncio.run(app_module._refresh_once(app))
+
+    spy_load.assert_called_once()
+    assert app.state.loaded.model == "new-model-obj"
+    assert app.state.loaded.model_version == "2"
+
+
+def test_refresh_once_skips_reload_when_version_unchanged():
+    app.state.loaded = LoadedModel(model="same-model-obj", model_version="1", load_error=None)
+    with (
+        patch.object(registry, "resolve_alias_version", return_value="1"),
+        patch.object(registry, "load_active_model") as spy_load,
+    ):
+        asyncio.run(app_module._refresh_once(app))
+
+    # versi sama -> load_active_model TIDAK dipanggil (hemat fetch S3).
+    spy_load.assert_not_called()
+    assert app.state.loaded.model == "same-model-obj"
+
+
+def test_refresh_once_keeps_existing_model_when_refresh_fails():
+    app.state.loaded = LoadedModel(model="good-model-obj", model_version="1", load_error=None)
+    with patch.object(registry, "resolve_alias_version", side_effect=RuntimeError("registry unreachable")):
+        asyncio.run(app_module._refresh_once(app))
+
+    # model lama TETAP dipakai -- TIDAK di-downgrade ke None.
+    assert app.state.loaded.model == "good-model-obj"
+    assert app.state.loaded.model_version == "1"
+
+
+def test_refresh_once_sets_error_when_first_load_fails():
+    app.state.loaded = LoadedModel(model=None, model_version=None, load_error=None)
+    with patch.object(registry, "resolve_alias_version", side_effect=RuntimeError("registry unreachable")):
+        asyncio.run(app_module._refresh_once(app))
+
+    # belum pernah ada model sukses -> perilaku M3.2 dipertahankan (model=None+error).
+    assert app.state.loaded.model is None
+    assert "registry unreachable" in app.state.loaded.load_error
