@@ -60,6 +60,7 @@ from typing import Optional
 import pandas as pd
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from churn_prediction.inference import registry
 from churn_prediction.inference.constants import ACTIVE_ALIAS
@@ -145,6 +146,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Churn Prediction Real-Time API", lifespan=lifespan)
+
+# Milestone 3.5 -- histogram latency + counter request/error per status code,
+# di-scrape Prometheus (infra/k8s/monitoring/). instrument() dipanggil sebelum
+# app menerima trafik (module scope, bukan di dalam lifespan) supaya middleware
+# terpasang sejak request pertama -- lihat
+# milestones/3.5-monitoring-infra-pipeline-health/decisions.md Keputusan #2.
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 def _error_envelope(code: str, message: str) -> dict:

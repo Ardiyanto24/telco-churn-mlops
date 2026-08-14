@@ -76,6 +76,12 @@ dependencies = [
     # Lihat milestones/3.2-real-time-inference-api/decisions.md Keputusan #1.
     "fastapi==0.141.1",
     "uvicorn==0.52.3",
+    # prometheus-fastapi-instrumentator: Milestone 3.5 (monitoring infra API) --
+    # satu wiring (Instrumentator().instrument(app).expose(app)) menghasilkan
+    # histogram latency + counter request/error per status code, dipakai
+    # Prometheus untuk KK1 M3.5 (p95 latency, error rate). Lihat
+    # milestones/3.5-monitoring-infra-pipeline-health/decisions.md Keputusan #2.
+    "prometheus-fastapi-instrumentator==8.1.0",
 ]
 
 [project.optional-dependencies]

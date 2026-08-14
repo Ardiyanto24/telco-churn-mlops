@@ -198,3 +198,60 @@ def test_refresh_once_sets_error_when_first_load_fails():
     # belum pernah ada model sukses -> perilaku M3.2 dipertahankan (model=None+error).
     assert app.state.loaded.model is None
     assert "registry unreachable" in app.state.loaded.load_error
+
+
+# ── /metrics -- Milestone 3.5 (instrumentasi metrik infra API) ─────────────
+
+
+def test_metrics_endpoint_exposes_prometheus_format():
+    with TestClient(app) as client:
+        response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "text/plain" in response.headers["content-type"]
+    assert "http_request_duration_seconds" in response.text
+
+
+def test_metrics_reflects_real_request_counts_by_status_code():
+    """KK1 M3.5 minta error rate/latency bisa dijawab dari metrik -- ini
+    membuktikan counter/histogram BENAR-BENAR naik sesuai trafik nyata yang
+    dikirim, bukan cuma endpoint /metrics ada.
+
+    Dibandingkan lewat DELTA (bukan nilai absolut) -- REGISTRY prometheus_client
+    bersifat global sepanjang proses pytest, counter dari test lain yang juga
+    memanggil /predict (mis. test 422 di atas) ikut terakumulasi di sana."""
+    from prometheus_client import REGISTRY
+
+    def _count(status: str) -> float:
+        return (
+            REGISTRY.get_sample_value(
+                "http_requests_total",
+                {"handler": "/predict", "method": "POST", "status": status},
+            )
+            or 0.0
+        )
+
+    before_2xx, before_4xx = _count("2xx"), _count("4xx")
+
+    with (
+        patch.object(registry, "resolve_alias_version", return_value="1"),
+        patch.object(registry, "load_active_model", return_value=object()),
+        patch.object(app_module, "predict_active") as mocked_predict,
+    ):
+        mocked_predict.return_value = pd.DataFrame(
+            [
+                {
+                    "churn_probability": 0.42,
+                    "churn_label": 0,
+                    "model_version": "1",
+                    "predicted_at": "2026-08-14T00:00:00Z",
+                }
+            ]
+        )
+        with TestClient(app) as client:
+            client.post("/predict", json=_valid_payload())  # 200
+            client.post("/predict", json=_valid_payload(tenure=200))  # 422
+            client.post("/predict", json=_valid_payload(tenure=200))  # 422 lagi
+
+    assert _count("2xx") - before_2xx == 1.0
+    assert _count("4xx") - before_4xx == 2.0
