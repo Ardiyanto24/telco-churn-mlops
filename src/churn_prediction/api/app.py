@@ -19,6 +19,14 @@ Kalau startup gagal memuat model, app TETAP hidup (``app.state.model=None``)
 (Keputusan #5) -- "restart untuk pick up versi model baru" adalah
 keterbatasan SAH milestone ini, mekanisme refresh-tanpa-restart adalah
 scope Milestone 3.4 (dijadwalkan terpisah).
+
+``/healthz`` (liveness) dan ``/readyz`` (readiness) -- Milestone 3.3, lihat
+milestones/3.3-deployment-kubernetes/decisions.md Keputusan #3. Dipisah
+SENGAJA: liveness gagal -> Kubernetes RESTART pod; readiness gagal ->
+Kubernetes cuma keluarkan pod dari trafik Service (tidak restart). Kalau
+digabung, pod dengan model gagal dimuat (mis. registry down, KK3 M3.2) akan
+di-restart terus-menerus tanpa pernah membantu (restart tidak memperbaiki
+dependency eksternal yang down) -- crash-loop tak berguna.
 """
 
 from contextlib import asynccontextmanager
@@ -54,6 +62,29 @@ def _error_envelope(code: str, message: str) -> dict:
     BEDA dari 422 bawaan FastAPI/Pydantic untuk request tidak valid, yang
     sengaja dipakai apa adanya (Keputusan #7)."""
     return {"error": {"code": code, "message": message}}
+
+
+@app.get("/healthz")
+def healthz():
+    """Liveness -- selalu 200 selama proses bisa merespons HTTP, TIDAK
+    mengecek status model (lihat docstring modul di atas kenapa dipisah dari
+    /readyz)."""
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+def readyz(request: Request):
+    """Readiness -- mencerminkan kesiapan MODEL (KK2 Milestone 3.3), bukan
+    cuma proses hidup. 503 kalau model belum/gagal dimuat -- Kubernetes
+    mengeluarkan pod dari trafik Service sampai kondisi ini berubah (lewat
+    restart manual, bukan retry otomatis -- lihat Keputusan #5 M3.2)."""
+    state = request.app.state
+    if state.model is None:
+        return JSONResponse(
+            status_code=503,
+            content=_error_envelope("model_unavailable", f"Model belum termuat: {state.load_error}"),
+        )
+    return {"status": "ready", "model_version": state.model_version}
 
 
 @app.post("/predict")

@@ -109,3 +109,40 @@ def test_predict_returns_503_when_model_fails_to_load_at_startup():
     body = response.json()
     assert body["error"]["code"] == "model_unavailable"
     assert "registry unreachable" in body["error"]["message"]
+
+
+# ── /healthz (liveness) dan /readyz (readiness) -- Milestone 3.3 ───────────
+
+
+def test_healthz_always_ok_even_when_model_fails_to_load():
+    """Liveness TIDAK boleh terpengaruh status model -- kalau tidak, pod
+    dengan model gagal dimuat akan di-restart terus-menerus oleh Kubernetes
+    tanpa pernah membantu (lihat decisions.md Keputusan #3)."""
+    with patch.object(registry, "resolve_alias_version", side_effect=RuntimeError("registry unreachable")):
+        with TestClient(app) as client:
+            response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+@pytest.mark.integration
+def test_readyz_200_when_model_loaded():
+    with TestClient(app) as client:
+        response = client.get("/readyz")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["model_version"]
+
+
+def test_readyz_503_when_model_fails_to_load():
+    with patch.object(registry, "resolve_alias_version", side_effect=RuntimeError("registry unreachable")):
+        with TestClient(app) as client:
+            response = client.get("/readyz")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["error"]["code"] == "model_unavailable"
+    assert "registry unreachable" in body["error"]["message"]
