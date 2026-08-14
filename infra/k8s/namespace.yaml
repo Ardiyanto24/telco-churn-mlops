@@ -1,0 +1,6 @@
+# Milestone 3.3 -- namespace terpisah untuk resource real-time API, bukan
+# default. Lihat milestones/3.3-deployment-kubernetes/decisions.md Keputusan #8.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: churn-prediction

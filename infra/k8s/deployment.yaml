@@ -1,0 +1,82 @@
+# Milestone 3.3 -- deploy image real-time API (Milestone 3.1/3.2) ke
+# Kubernetes lokal (Docker Desktop). Lihat
+# milestones/3.3-deployment-kubernetes/decisions.md untuk keputusan lengkap.
+#
+# Target LOKAL sengaja (bukan cloud) -- KT baru docs/keputusan-tertunda.md
+# dan KD baru docs/keterbatasan-diterima.md mencatat alasan+pemicu
+# peninjauan ulang.
+#
+# imagePullPolicy: IfNotPresent -- Docker Desktop Kubernetes berbagi image
+# store yang sama dengan `docker build` lokal, TIDAK perlu push ke registry
+# eksternal manapun (Keputusan #2). Kredensial WAJIB lewat Secret
+# `churn-api-secrets` (dibuat manual via `kubectl create secret`, TIDAK
+# dicommit) -- manifest ini TIDAK berisi nilai kredensial apa pun (Keputusan
+# #6).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: churn-api
+  namespace: churn-prediction
+  labels:
+    app: churn-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: churn-api
+  template:
+    metadata:
+      labels:
+        app: churn-api
+    spec:
+      containers:
+        - name: churn-api
+          image: churn-inference:m3.3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: churn-api-secrets
+          # startupProbe -- forced by bukti empiris M3.2 KK3: startup gagal-
+          # registry butuh ~100 detik (retry backoff eksponensial internal
+          # mlflow.store.db.utils) sebelum port terbuka, app TETAP hidup
+          # (bukan bug). Budget 30 x 10s = 300 detik supaya livenessProbe
+          # tidak membunuh pod prematur di tengah startup lambat yang
+          # legitimate. Keputusan #4.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            periodSeconds: 10
+            failureThreshold: 30
+          # livenessProbe -- HANYA cek proses hidup (/healthz selalu 200),
+          # TIDAK cek status model. Keputusan #3: kalau digabung dengan
+          # readiness, pod dengan model gagal dimuat akan di-restart terus-
+          # menerus tanpa pernah membantu (restart tidak memperbaiki
+          # dependency eksternal yang down).
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            periodSeconds: 15
+            failureThreshold: 3
+          # readinessProbe -- mencerminkan KESIAPAN MODEL (/readyz, KK2
+          # M3.3), bukan cuma proses hidup. Gagal -> pod dikeluarkan dari
+          # trafik Service, TIDAK di-restart.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 3
+          # PLACEHOLDER awal -- direvisi Task 8 berbasis observasi nyata
+          # `docker stats` (Keputusan #5), bukan tebakan. Lihat logs.md
+          # Checkpoint 3 untuk angka final+dasarnya.
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
