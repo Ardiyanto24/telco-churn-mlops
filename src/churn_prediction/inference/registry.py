@@ -186,6 +186,30 @@ def load_active_model(alias: str = constants.ACTIVE_ALIAS, tracking_uri: Optiona
     return mlflow.pyfunc.load_model(f"models:/{constants.MODEL_NAME}@{alias}")
 
 
+def load_active_pipeline(alias: str = constants.ACTIVE_ALIAS, tracking_uri: Optional[str] = None):
+    """Muat HANYA ``PreprocessingPipeline`` fitted dari bundle yang ditandai
+    ``alias`` -- Milestone 3.6 (monitoring drift), butuh fitur transformed
+    (29 kolom) TANPA menjalankan prediksi penuh.
+
+    ``predict_active()``/``ChurnPyfuncModel.predict()`` cuma kembalikan hasil
+    akhir (churn_probability dst), tidak expose fitur transformed di
+    tengah jalan. Bundle ``{"pipeline","model","threshold"}`` (M1.5) TIDAK
+    bisa di-unpickle SEBAGIAN -- pickle mendeserialisasi seluruh object graph
+    sekaligus (butuh lightgbm/xgboost importable meski cuma mau pakai
+    ``pipeline``). Reuse 100% ``load_active_model()`` (SATU jalur loading,
+    tidak reimplementasi) lalu expose atribut privat pipeline yang sudah
+    dimuat -- TIDAK menduplikasi logic loading.
+
+    **Titik rapuh**: bergantung struktur internal MLflow
+    (``PyFuncModel._model_impl.python_model``, bukan API publik terdokumentasi)
+    -- diverifikasi bekerja di ``mlflow-skinny==3.15.1`` (versi dipin proyek
+    ini). Cek ulang kalau versi mlflow-skinny di-upgrade. Lihat
+    milestones/3.6-monitoring-drift-kualitas-model/decisions.md.
+    """
+    model = load_active_model(alias, tracking_uri)
+    return model._model_impl.python_model._pipeline
+
+
 def resolve_alias_version(alias: str = constants.ACTIVE_ALIAS, tracking_uri: Optional[str] = None) -> str:
     """Selesaikan ``alias`` (mis. ``champion``) ke nomor versi konkret saat ini
     -- Milestone 2.5. Dibutuhkan untuk lineage: alias bisa berpindah menunjuk

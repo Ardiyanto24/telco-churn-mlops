@@ -164,6 +164,42 @@ def test_load_active_model_reflects_alias_reassignment(tmp_path):
     assert label_when_v1_active != label_when_v2_active
 
 
+# ── load_active_pipeline() -- Milestone 3.6 (monitoring drift) ─────────────
+
+
+def test_load_active_pipeline_transforms_to_29_columns_matching_bundle(tmp_path):
+    """KK M3.6 -- load_active_pipeline() harus expose PreprocessingPipeline
+    fitted yang SAMA dipakai produksi (bukan objek terpisah/tidak fitted)."""
+    tracking_uri = _tracking_uri(tmp_path)
+    bundle = registry.build_bundle()
+    info = registry.register_model(bundle, tracking_uri=tracking_uri)
+    registry.set_active_alias(info.registered_model_version, alias="champion", tracking_uri=tracking_uri)
+
+    df = _sample_raw_df()
+    expected = bundle["pipeline"].transform(df)
+
+    pipeline = registry.load_active_pipeline(alias="champion", tracking_uri=tracking_uri)
+    actual = pipeline.transform(df)
+
+    assert actual.shape == (1, 29)
+    np.testing.assert_allclose(actual.to_numpy(dtype=float), expected.to_numpy(dtype=float))
+
+
+def test_load_active_pipeline_reflects_alias_reassignment(tmp_path):
+    """Konsisten load_active_model() -- bukan cache statis, ikut alias
+    berpindah versi (meski pipeline preprocessing-nya identik di kedua versi
+    uji ini, alias resolution-nya tetap harus version-aware)."""
+    tracking_uri = _tracking_uri(tmp_path)
+    bundle_v1 = registry.build_bundle(threshold=0.6238)
+    info_v1 = registry.register_model(bundle_v1, tracking_uri=tracking_uri)
+    bundle_v2 = registry.build_bundle(threshold=0.5)
+    registry.register_model(bundle_v2, tracking_uri=tracking_uri)
+
+    registry.set_active_alias(info_v1.registered_model_version, alias="champion", tracking_uri=tracking_uri)
+    pipeline = registry.load_active_pipeline(alias="champion", tracking_uri=tracking_uri)
+    assert hasattr(pipeline, "transform")
+
+
 # ── Sanity check gate -- Milestone 2.8 Checkpoint 1 ─────────────────────────
 
 class _NaNModel:
