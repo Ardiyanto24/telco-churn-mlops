@@ -1,9 +1,15 @@
-# Milestone 3.5 -- dashboard Grafana di-provision deklaratif (ConfigMap,
+# Milestone 3.5/3.6 -- dashboard Grafana di-provision deklaratif (ConfigMap,
 # bukan diklik manual di UI) -- reproducible lintas restart/redeploy pod.
 # Nama metric di panel PERSIS sama dengan yang sudah terverifikasi nyata
-# (Task 17: http_request_duration_seconds/http_requests_total dari
+# (M3.5: http_request_duration_seconds/http_requests_total dari
 # instrumentator; pipeline_flow_last_status/quality_gate_last_verdict/
-# predictions_last_write_age_seconds dari pipeline_health_exporter).
+# predictions_last_write_age_seconds dari pipeline_health_exporter. M3.6:
+# feature_drift_psi/feature_drift_pvalue/feature_drift_verdict dari
+# drift_exporter).
+#
+# Panel drift M3.6 ditambah ke dashboard yang SUDAH ADA (churn-monitoring-m35)
+# -- BUKAN dashboard baru, sesuai forward-compat M3.5 (lihat
+# milestones/3.6-monitoring-drift-kualitas-model/decisions.md Keputusan #8).
 #
 # 2 ConfigMap: provider (memberitahu Grafana folder mana yang berisi
 # dashboard JSON) + dashboard JSON itu sendiri -- konvensi provisioning
@@ -181,6 +187,78 @@ data:
           "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
           "targets": [
             { "expr": "predictions_last_write_age_seconds", "format": "table", "instant": true }
+          ]
+        },
+        {
+          "id": 10,
+          "type": "row",
+          "title": "Data & Model Drift (KK1/KK2 M3.6)",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 }
+        },
+        {
+          "id": 11,
+          "type": "stat",
+          "title": "Jumlah Fitur Verdict STOP",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 5, "w": 6, "x": 0, "y": 26 },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            { "expr": "count(feature_drift_verdict == 0) OR on() vector(0)" }
+          ]
+        },
+        {
+          "id": 12,
+          "type": "stat",
+          "title": "Jumlah Fitur Verdict FLAG",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 5, "w": 6, "x": 6, "y": 26 },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            { "expr": "count(feature_drift_verdict == 1) OR on() vector(0)" }
+          ]
+        },
+        {
+          "id": 13,
+          "type": "table",
+          "title": "PSI (Tier 1) + p-value (Tier 2) + Verdict per Fitur (baseline data training vs telco_customers_synthetic)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 31 },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": { "2": { "text": "pass", "color": "green" } } },
+                { "type": "value", "options": { "1": { "text": "flag", "color": "yellow" } } },
+                { "type": "value", "options": { "0": { "text": "stop", "color": "red" } } }
+              ]
+            },
+            "overrides": []
+          },
+          "targets": [
+            { "expr": "feature_drift_psi", "format": "table", "instant": true, "legendFormat": "psi" },
+            { "expr": "feature_drift_pvalue", "format": "table", "instant": true, "legendFormat": "p_value" },
+            { "expr": "feature_drift_verdict", "format": "table", "instant": true, "legendFormat": "verdict" }
           ]
         }
       ]
