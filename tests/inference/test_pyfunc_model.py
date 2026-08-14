@@ -127,3 +127,57 @@ def test_different_threshold_in_bundle_changes_label(tmp_path):
     assert out_high["churn_label"].sum() <= out_low["churn_label"].sum()
     assert out_low["churn_label"].sum() == len(df)  # threshold ~0 -> semua churn
     assert out_high["churn_label"].sum() == 0  # threshold ~1 -> tidak ada yang churn
+
+
+def test_predict_invariant_to_input_column_order(tmp_path):
+    """Regresi Milestone 3.2 (decisions.md Keputusan #10): preprocessor+model
+    asli DS di-fit TANPA nama fitur (numpy array polos) -- ``predict()``
+    HARUS reorder ``model_input`` ke urutan kanonik sebelum masuk pipeline,
+    supaya caller dengan urutan kolom BERBEDA (nama+nilai identik, cuma
+    urutan beda) tetap menghasilkan hasil SAMA. Sebelum fix, dua urutan
+    berbeda menghasilkan ``churn_probability`` BERBEDA (delta hingga ~0.36)
+    TANPA error apa pun -- silent wrong prediction, bukan cuma floating-point
+    noise."""
+    bundle_path = _write_bundle(tmp_path, threshold=0.6238)
+    pyfunc = ChurnPyfuncModel()
+    pyfunc.load_context(_FakeContext({"bundle": str(bundle_path)}))
+
+    df_canonical = _sample_raw_df()
+    # reversed() -- deterministik/reproducible, dijamin beda dari urutan asli
+    # (bukan urutan acak sembarang yang bisa kebetulan sama).
+    df_shuffled = df_canonical[list(reversed(df_canonical.columns))]
+
+    out_canonical = pyfunc.predict(context=None, model_input=df_canonical)
+    out_shuffled = pyfunc.predict(context=None, model_input=df_shuffled)
+
+    pd.testing.assert_frame_equal(out_canonical, out_shuffled)
+
+
+def test_predict_matches_regardless_of_request_schema_field_order(tmp_path):
+    """Regresi SPESIFIK Milestone 3.2: urutan field ``ChurnPredictionRequest``
+    (skema request real-time API M1.3 -- kolom numerik di AKHIR, dibangun
+    dari ``CATEGORICAL_COLUMNS`` lalu ``NUMERIC_RANGES``) beda dari urutan
+    kanonik (``RAW_PASCAL_TO_SNAKE``, kolom numerik di TENGAH, mengikuti
+    dataset asli) -- ini urutan PERSIS yang memicu bug Keputusan #10 sebelum
+    diperbaiki (ditemukan lewat ``scripts/api_parity_check.py`` M3.2)."""
+    from churn_prediction.schema.request_schema import ChurnPredictionRequest
+
+    bundle_path = _write_bundle(tmp_path, threshold=0.6238)
+    pyfunc = ChurnPyfuncModel()
+    pyfunc.load_context(_FakeContext({"bundle": str(bundle_path)}))
+
+    row = _sample_raw_df().iloc[0].to_dict()
+    df_canonical = pd.DataFrame([row])
+
+    request_row = ChurnPredictionRequest(**row).model_dump()
+    df_request_order = pd.DataFrame([request_row])
+    # Pastikan urutan BENAR-BENAR beda -- kalau tidak, test ini tidak
+    # membuktikan apa-apa.
+    assert list(df_canonical.columns) != list(df_request_order.columns)
+
+    out_canonical = pyfunc.predict(context=None, model_input=df_canonical)
+    out_request_order = pyfunc.predict(context=None, model_input=df_request_order)
+
+    pd.testing.assert_frame_equal(
+        out_canonical.reset_index(drop=True), out_request_order.reset_index(drop=True)
+    )
