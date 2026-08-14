@@ -1,0 +1,38 @@
+# Milestone 3.6 -- Deployment drift_exporter. imagePullPolicy IfNotPresent
+# -- Docker Desktop Kubernetes berbagi image store dengan `docker build`
+# lokal, pola sama churn-api (M3.3)/pipeline-health-exporter (M3.5).
+# Kredensial WAJIB lewat Secret `monitoring-secrets` (key DRIFT_READER_DB_URL,
+# ditambahkan manual via `kubectl patch`, TIDAK dicommit).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drift-exporter
+  namespace: monitoring
+  labels:
+    app: drift-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: drift-exporter
+  template:
+    metadata:
+      labels:
+        app: drift-exporter
+    spec:
+      containers:
+        - name: drift-exporter
+          image: drift-exporter:m3.6
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9101
+          envFrom:
+            - secretRef:
+                name: monitoring-secrets
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
