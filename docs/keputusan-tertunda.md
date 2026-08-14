@@ -131,3 +131,19 @@ User diberi 2 opsi: (a) Docker Desktop Kubernetes lokal -- gratis, zero setup ba
 **Opsi yang sudah dieksplorasi (bukan keputusan final, referensi untuk peninjauan nanti):** VPS gratis (Oracle Cloud Always Free + k3s) -- opsi termurah teridentifikasi; cloud-managed K8s berbayar (GKE/EKS/AKS) -- lebih stabil/matang tapi biaya berkelanjutan tanpa kebutuhan konkret saat ini.
 
 **Referensi riset:** [Oracle Quietly Halves Free Tier Ampere A1 Compute Limits — InfoQ](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/), [Always Free Resources — Oracle Docs](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm).
+
+---
+
+## KT-9 — Cakupan monitoring drift untuk jalur real-time API (belum dibangun)
+
+**Muncul saat:** Milestone 3.6, sebelum plan ditulis (`AskUserQuestion` ke user, setelah opsi "batch saja" vs "kedua jalur sekarang" disajikan dengan trade-off).
+
+**Konteks:** Output Milestone 3.6 (`mlops-03-deployment-observability.md` baris 139-142) minta pemantauan distribusi fitur input dan output prediksi "dari kedua jalur -- batch dan real-time". Real-time API (M3.2-3.4) TIDAK menyimpan payload request/hasil prediksi ke mana pun (cuma dikembalikan di response HTTP lalu hilang) -- beda dari jalur batch yang punya `predictions.batch_predictions` (M2.5/M2.9) sebagai sumber data historis siap pakai. Menambah cakupan real-time berarti menambah persistence baru (tabel + write path) ke `src/churn_prediction/api/app.py`, murni untuk kebutuhan monitoring, belum ada pemanggil eksternal nyata yang butuh datanya.
+
+**Keputusan untuk sekarang:** M3.6 dibangun HANYA untuk jalur batch — `telco_customers_source` (baseline data training, byte-identik dikonfirmasi `notebook-audit.md` Bagian H.2) dibandingkan `telco_customers_synthetic` (data "sekarang") untuk input, `predictions.batch_predictions` untuk output. Lihat `milestones/3.6-monitoring-drift-kualitas-model/decisions.md` Keputusan #2.
+
+**Kenapa belum diputuskan sekarang:** (1) Konsisten pola yang SUDAH established di KT-5 (verdict latensi real-time API), KT-7 (parity CI penuh terhadap real-time API), dan KT-8 (deployment always-on real-time API) — SEMUA menunda pekerjaan spesifik-real-time sampai ada pemanggil eksternal nyata, alasan yang sama persis berlaku di sini; (2) trafik yang ADA terhadap real-time API sejauh ini murni verifikasi manual (M3.2-3.5, puluhan-ratusan request per sesi test) — drift monitoring atas sample sekecil dan tidak representatif ini tidak bermakna, cuma akan menghasilkan noise atau kesimpulan "tidak ada drift" yang menyesatkan (bukan karena benar-benar tidak ada drift, tapi karena tidak ada trafik produksi nyata untuk diukur); (3) menambah write path baru ke `/predict` (request handler yang sudah teruji ketat sejak M3.2-3.4) demi kebutuhan monitoring yang belum ada konsumennya adalah risiko yang tidak sepadan sekarang.
+
+**Pemicu peninjauan:** Real-time API punya pemanggil eksternal nyata (bukan portofolio/demo/verifikasi manual semata) — trigger yang SAMA dengan KT-5/7/8, konsisten satu payung kondisi "real-time API mulai dipakai sungguhan".
+
+**Referensi:** `milestones/3.6-monitoring-drift-kualitas-model/decisions.md` Keputusan #2, `docs/keputusan-tertunda.md` KT-5/KT-7/KT-8 (pola sama).
