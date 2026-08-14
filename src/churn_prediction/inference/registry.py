@@ -13,15 +13,18 @@ milestones/1.5-inference-service/decisions.md Keputusan #6.
 milestones/2.1-fondasi-orchestrator-model-registry/decisions.md Keputusan #2.
 """
 
+import os
 import tempfile
 import warnings
 from pathlib import Path
 from typing import Optional
 
+import boto3
 import joblib
 import mlflow
 import mlflow.pyfunc
 import mlflow.tracking
+import yaml
 
 from ..transform.artifact_loader import DEFAULT_PREPROCESSOR_PATH, load_fitted_pipeline
 from . import constants
@@ -57,23 +60,76 @@ def build_bundle(
     return {"pipeline": pipeline, "model": model, "threshold": threshold}
 
 
+def _fix_windows_artifact_paths(model_id: str, run_id: str) -> None:
+    """Post-process manifest ``MLmodel`` di S3 -- normalisasi backslash jadi
+    forward-slash pada field ``flavors.python_function.artifacts.*.path``.
+
+    Root cause SEBENARNYA dari bug lintas-platform Windows->Linux (BEDA dari
+    diagnosis awal Milestone 2.5, ``bundle_path.as_posix()`` di bawah TIDAK
+    cukup): ``mlflow.pyfunc.log_model()`` sendiri (``mlflow/pyfunc/model.py``,
+    fungsi internal penyimpan ``artifacts={}``) memakai ``os.path.join()``
+    untuk membangun field ``path`` tiap entry artifacts -- di Windows ini
+    SELALU menghasilkan backslash, TERLEPAS dari apakah source path yang
+    diberikan caller (``bundle_path.as_posix()`` vs ``str(bundle_path)``)
+    posix atau native. Field ``path`` inilah yang dipakai
+    ``context.artifacts[key]`` saat ``load_context()`` -- backslash di sini
+    membuat ``os.path.join`` di Linux menghasilkan nama file literal dengan
+    backslash yang tidak pernah ada di filesystem (``FileNotFoundError``).
+
+    Dibuktikan ditemukan Milestone 3.4: 2 versi kandidat baru yang
+    diregistrasi ulang dari mesin dev Windows yang sama (versi 3, dengan
+    ``.as_posix()``; percobaan dengan ``str(bundle_path)`` malah merusak
+    upload artifact sepenuhnya) SAMA-SAMA gagal dimuat dari Linux dengan
+    ``FileNotFoundError`` identik -- dikonfirmasi lewat perbandingan manifest
+    ``MLmodel`` byte-per-byte versi yang bekerja (field ``path`` forward-slash,
+    kebetulan/historis) vs versi baru yang gagal (field ``path`` backslash).
+    Lihat milestones/3.4-deteksi-versi-model-aktif/decisions.md.
+
+    Cuma berlaku untuk artifact store S3 (registry produksi, Milestone 2.1) --
+    di-skip (bukan error) kalau run ini memakai artifact store lokal/lainnya
+    (mis. test suite yang sengaja pakai tracking URI SQLite terisolasi,
+    `tests/inference/test_registry.py` -- di situ register+load SELALU di
+    OS yang sama, backslash tidak pernah jadi masalah). Dicek dari
+    `artifact_uri` run yang BARU SAJA dibuat, bukan dari ada/tidaknya env var
+    S3 (env var bisa saja tersedia di environment meski run ini tidak
+    memakainya).
+    """
+    artifact_uri = mlflow.tracking.MlflowClient().get_run(run_id).info.artifact_uri
+    if not artifact_uri.startswith("s3://"):
+        return
+
+    bucket = os.environ["MLFLOW_ARTIFACT_BUCKET"]
+    key = f"models/{model_id}/artifacts/MLmodel"
+    s3 = boto3.client("s3", endpoint_url=os.environ.get("MLFLOW_S3_ENDPOINT_URL"))
+
+    raw = s3.get_object(Bucket=bucket, Key=key)["Body"].read().decode("utf-8")
+    manifest = yaml.safe_load(raw)
+
+    artifacts = manifest.get("flavors", {}).get("python_function", {}).get("artifacts", {})
+    changed = False
+    for entry in artifacts.values():
+        path = entry.get("path", "")
+        if "\\" in path:
+            entry["path"] = path.replace("\\", "/")
+            changed = True
+
+    if changed:
+        fixed = yaml.safe_dump(manifest, default_flow_style=False, sort_keys=False)
+        s3.put_object(Bucket=bucket, Key=key, Body=fixed.encode("utf-8"))
+
+
 def register_model(bundle: dict, tracking_uri: Optional[str] = None):
     """Log ``bundle`` sebagai ``ChurnPyfuncModel`` dan registrasikan versi baru
     ke ``constants.MODEL_NAME`` di tracking URI yang diberikan (default
     ``constants.get_tracking_uri()``). Mengembalikan ``ModelInfo`` (punya
     ``.registered_model_version``).
 
-    ``bundle_path.as_posix()`` (BUKAN ``str(bundle_path)``) -- mitigasi bug
-    upstream MLflow (https://github.com/mlflow/mlflow/issues/11862): saat
-    ``artifacts={}`` di-log dari Windows, MLflow menyimpan path relatif
-    artifact APA ADANYA (termasuk backslash Windows) ke manifest ``MLmodel``,
-    yang lalu gagal di-resolve saat model dimuat dari Linux (mis. Prefect
-    Managed, ditemukan Milestone 2.5 Checkpoint 3 -- lihat
-    milestones/2.5-batch-scoring-dag/decisions.md). ``.as_posix()`` memaksa
-    forward-slash terlepas dari OS tempat registrasi dijalankan -- mitigasi
-    best-effort, BELUM diverifikasi menutup bug upstream 100% untuk semua
-    kasus (registrasi versi berikutnya WAJIB diverifikasi ulang lintas-OS,
-    bukan diasumsikan aman).
+    ``bundle_path.as_posix()`` dipakai untuk source path lokal (kebersihan
+    umum), TAPI perbaikan UTAMA lintas-platform ada di
+    ``_fix_windows_artifact_paths()`` (dipanggil di akhir fungsi ini) --
+    lihat docstring fungsi itu untuk root cause lengkap (diagnosis Milestone
+    2.5 soal ``.as_posix()`` TERNYATA tidak menutup bug ini, ditemukan ulang
+    Milestone 3.4).
 
     Gerbang sanity check (Milestone 2.8, Bagian 5.5 dokumen arsitektur)
     dijalankan DI SINI -- di dalam ``register_model()``, bukan cuma di script
@@ -98,6 +154,7 @@ def register_model(bundle: dict, tracking_uri: Optional[str] = None):
                 artifacts={"bundle": bundle_path.as_posix()},
                 registered_model_name=constants.MODEL_NAME,
             )
+    _fix_windows_artifact_paths(model_info.model_uuid, model_info.run_id)
     return model_info
 
 
