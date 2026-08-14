@@ -1,0 +1,48 @@
+name: drift-monitoring
+
+# Milestone 3.6 -- murni OBSERVASIONAL, TIDAK mengubah
+# synthetic-auto-scoring.yml (M2.9) sama sekali. Trigger workflow_run
+# menunggu run itu SELESAI (apa pun yang memicunya -- repository_dispatch
+# dari generator, M2.9) baru menghitung drift terhadap data sintetis yang
+# baru saja discor -- konsisten M3.5 (exporter membaca dari luar tanpa
+# menyentuh kode pipeline batch Orang #2).
+#
+# workflow_dispatch tetap ada untuk verifikasi manual (Task 10,
+# milestones/3.6-monitoring-drift-kualitas-model/logs.md) tanpa harus
+# menunggu generator jalan sungguhan.
+#
+# runs-on: ubuntu-latest -- SAMA pola batch-scoring.yml/synthetic-auto-scoring.yml
+# (KD-1: terbukti tidak kena libgomp.so.1 utk lightgbm/mlflow-skinny yang
+# dibutuhkan registry.load_active_pipeline()).
+on:
+  workflow_run:
+    workflows: ["synthetic-auto-scoring"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  compute-drift-current-window:
+    runs-on: ubuntu-latest
+    # Kalau dipicu workflow_run, cuma lanjut kalau synthetic-auto-scoring
+    # sendiri SUKSES -- drift dihitung dari predictions.batch_predictions
+    # yang ditulisnya, tidak berguna kalau scoring gagal.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package + orchestration dependencies
+        run: pip install -e ".[orchestration]"
+
+      - name: Jalankan compute_drift.py --mode current
+        env:
+          DRIFT_WRITER_DB_URL: ${{ secrets.DRIFT_WRITER_DB_URL }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          MLFLOW_S3_ENDPOINT_URL: ${{ secrets.MLFLOW_S3_ENDPOINT_URL }}
+          MLFLOW_ARTIFACT_BUCKET: ${{ secrets.MLFLOW_ARTIFACT_BUCKET }}
+        run: python scripts/compute_drift.py --mode current
