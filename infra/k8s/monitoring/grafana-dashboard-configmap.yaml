@@ -1,0 +1,187 @@
+# Milestone 3.5 -- dashboard Grafana di-provision deklaratif (ConfigMap,
+# bukan diklik manual di UI) -- reproducible lintas restart/redeploy pod.
+# Nama metric di panel PERSIS sama dengan yang sudah terverifikasi nyata
+# (Task 17: http_request_duration_seconds/http_requests_total dari
+# instrumentator; pipeline_flow_last_status/quality_gate_last_verdict/
+# predictions_last_write_age_seconds dari pipeline_health_exporter).
+#
+# 2 ConfigMap: provider (memberitahu Grafana folder mana yang berisi
+# dashboard JSON) + dashboard JSON itu sendiri -- konvensi provisioning
+# Grafana (docs.grafana.com/grafana/latest/administration/provisioning/).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-churn-monitoring
+  namespace: monitoring
+data:
+  churn-monitoring.json: |
+    {
+      "title": "Churn Prediction -- Infra & Pipeline Health (M3.5)",
+      "uid": "churn-monitoring-m35",
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-6h", "to": "now" },
+      "schemaVersion": 39,
+      "panels": [
+        {
+          "id": 1,
+          "type": "row",
+          "title": "Real-Time API -- Infra (KK1 M3.5)",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "Request Rate /predict (per status)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{job=\"churn-api\",handler=\"/predict\"}[5m])) by (status)",
+              "legendFormat": "{{status}}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "Latency /predict -- p50/p95/p99",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+          "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"churn-api\",handler=\"/predict\"}[5m])) by (le))",
+              "legendFormat": "p50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"churn-api\",handler=\"/predict\"}[5m])) by (le))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"churn-api\",handler=\"/predict\"}[5m])) by (le))",
+              "legendFormat": "p99"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Error Rate /predict (5m)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 9 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "100 * sum(rate(http_requests_total{job=\"churn-api\",handler=\"/predict\",status=~\"4xx|5xx\"}[5m])) / sum(rate(http_requests_total{job=\"churn-api\",handler=\"/predict\"}[5m]))"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "row",
+          "title": "Pipeline Batch Health (KK2 M3.5)",
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 }
+        },
+        {
+          "id": 6,
+          "type": "stat",
+          "title": "Status Run Terakhir -- milestone-2-5-batch-scoring",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 5, "w": 6, "x": 0, "y": 14 },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": { "1": { "text": "Completed", "color": "green" } } },
+                { "type": "value", "options": { "0": { "text": "Failed/Crashed", "color": "red" } } },
+                { "type": "value", "options": { "-1": { "text": "Belum ada run", "color": "gray" } } }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            { "expr": "pipeline_flow_last_status{flow_name=\"milestone-2-5-batch-scoring\"}" }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "stat",
+          "title": "Durasi Run Terakhir",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 5, "w": 6, "x": 6, "y": 14 },
+          "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+          "targets": [
+            { "expr": "pipeline_flow_last_duration_seconds{flow_name=\"milestone-2-5-batch-scoring\"}" }
+          ]
+        },
+        {
+          "id": 8,
+          "type": "table",
+          "title": "Verdict Gerbang Kualitas Data Terakhir (per source_table)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 19 },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": { "2": { "text": "pass", "color": "green" } } },
+                { "type": "value", "options": { "1": { "text": "flag", "color": "yellow" } } },
+                { "type": "value", "options": { "0": { "text": "stop", "color": "red" } } }
+              ]
+            },
+            "overrides": []
+          },
+          "targets": [
+            { "expr": "quality_gate_last_verdict", "format": "table", "instant": true }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "table",
+          "title": "Staleness Tulis-Balik predictions.batch_predictions (per source_table)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 19 },
+          "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+          "targets": [
+            { "expr": "predictions_last_write_age_seconds", "format": "table", "instant": true }
+          ]
+        }
+      ]
+    }

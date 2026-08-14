@@ -1,0 +1,16 @@
+# Milestone 3.5 -- Service Grafana. type LoadBalancer -- Docker Desktop
+# Kubernetes auto-map ke localhost tanpa tooling tambahan (pola sama
+# churn-api M3.3), dipakai TIM untuk buka dashboard langsung dari browser
+# tanpa perlu port-forward manual tiap kali.
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  type: LoadBalancer
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000

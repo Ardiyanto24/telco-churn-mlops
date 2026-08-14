@@ -1,0 +1,19 @@
+# Milestone 3.5 -- provisioning datasource Grafana deklaratif (bukan diklik
+# manual di UI) -- reproducible lintas restart/redeploy pod Grafana. File ini
+# di-mount ke /etc/grafana/provisioning/datasources/ (konvensi Grafana).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource
+  namespace: monitoring
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.monitoring.svc.cluster.local:9090
+        isDefault: true
+        editable: false
