@@ -70,13 +70,19 @@ spec:
               port: 8000
             periodSeconds: 5
             failureThreshold: 3
-          # PLACEHOLDER awal -- direvisi Task 8 berbasis observasi nyata
-          # `docker stats` (Keputusan #5), bukan tebakan. Lihat logs.md
-          # Checkpoint 3 untuk angka final+dasarnya.
+          # Berbasis observasi nyata `docker stats` (Keputusan #5), BUKAN
+          # tebakan -- idle ~364MiB/~0.2% CPU; puncak 50 request /predict
+          # PARALEL ~387MiB/~102% CPU (1 core penuh). Lihat
+          # milestones/3.3-deployment-kubernetes/logs.md Checkpoint 3 untuk
+          # angka mentah lengkap. requests mendekati baseline idle (jaminan
+          # scheduling), limits ~2x margin di atas puncak yang teramati
+          # (memori) / headroom ~1.5x di atas puncak CPU (hindari throttling
+          # saat burst sedikit lebih besar) -- tetap "estimasi awal" (KK3
+          # sumber), disempurnakan M3.7 berdasar beban produksi nyata.
           resources:
             requests:
-              cpu: "250m"
-              memory: "512Mi"
+              cpu: "200m"
+              memory: "400Mi"
             limits:
-              cpu: "1000m"
-              memory: "1Gi"
+              cpu: "1500m"
+              memory: "768Mi"
