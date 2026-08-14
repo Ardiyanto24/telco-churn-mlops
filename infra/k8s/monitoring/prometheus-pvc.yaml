@@ -1,0 +1,17 @@
+# Milestone 3.5 -- PVC untuk TSDB Prometheus. KK1 M3.5 minta metrik
+# "tersimpan sebagai riwayat, bukan hanya snapshot sesaat" -- emptyDir akan
+# hilang tiap pod restart, PVC (StorageClass default Docker Desktop) bertahan
+# lintas restart pod. Keterbatasan diterima: riwayat tetap hilang kalau
+# cluster di-reset total (bukan cuma pod restart) -- konsisten KD-2. Lihat
+# milestones/3.5-monitoring-infra-pipeline-health/decisions.md Keputusan #6.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

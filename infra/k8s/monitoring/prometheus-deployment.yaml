@@ -1,0 +1,53 @@
+# Milestone 3.5 -- Deployment Prometheus. image resmi prom/prometheus, TIDAK
+# pakai Helm chart/operator (kube-prometheus-stack) -- konsisten pola
+# manifest-driven tangan yang sudah dipakai infra/k8s/ sejak M3.3, dan
+# menghindari kompleksitas CRD tambahan yang tidak dibutuhkan skala proyek ini.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      # fsGroup 65534 (nobody, user default image prom/prometheus) -- PVC
+      # hostpath Docker Desktop default root:root, tanpa ini Prometheus gagal
+      # tulis TSDB ke /prometheus (permission denied).
+      securityContext:
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v3.7.3
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data

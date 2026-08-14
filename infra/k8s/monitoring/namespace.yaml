@@ -1,0 +1,10 @@
+# Milestone 3.5 -- namespace terpisah untuk stack monitoring (Prometheus,
+# Grafana, pipeline_health_exporter), dipisah dari namespace `churn-prediction`
+# (M3.3, workload serving). Pemisahan standar infra observability vs workload
+# -- memudahkan teardown/redeploy komponen monitoring tanpa menyentuh
+# Deployment API produksi. Lihat
+# milestones/3.5-monitoring-infra-pipeline-health/decisions.md Keputusan #1.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring

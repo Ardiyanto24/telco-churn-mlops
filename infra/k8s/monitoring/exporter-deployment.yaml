@@ -1,0 +1,39 @@
+# Milestone 3.5 -- Deployment pipeline_health_exporter. imagePullPolicy
+# IfNotPresent -- Docker Desktop Kubernetes berbagi image store dengan
+# `docker build` lokal, pola sama churn-api (M3.3 Keputusan #2). Kredensial
+# WAJIB lewat Secret `monitoring-secrets` (dibuat manual via
+# `kubectl create secret`, TIDAK dicommit) -- manifest ini TIDAK berisi nilai
+# kredensial apa pun.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pipeline-health-exporter
+  namespace: monitoring
+  labels:
+    app: pipeline-health-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pipeline-health-exporter
+  template:
+    metadata:
+      labels:
+        app: pipeline-health-exporter
+    spec:
+      containers:
+        - name: pipeline-health-exporter
+          image: pipeline-health-exporter:m3.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9100
+          envFrom:
+            - secretRef:
+                name: monitoring-secrets
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"

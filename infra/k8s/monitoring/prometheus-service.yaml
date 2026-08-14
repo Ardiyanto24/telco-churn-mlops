@@ -1,0 +1,15 @@
+# Milestone 3.5 -- Service Prometheus. ClusterIP (bukan LoadBalancer seperti
+# churn-api M3.3) -- Prometheus/Grafana adalah tooling internal tim, diakses
+# lewat `kubectl port-forward` saat dibutuhkan, tidak perlu exposed permanen
+# ke localhost seperti API produksi.
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090

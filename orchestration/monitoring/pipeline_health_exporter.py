@@ -44,7 +44,15 @@ FLOW_NAME = "milestone-2-5-batch-scoring"
 # dipilih cukup responsif tanpa membebani Prefect API/Postgres dengan polling
 # berlebihan. Bisa diubah tanpa ubah kode (env var).
 POLL_INTERVAL_SECONDS = float(os.environ.get("PIPELINE_HEALTH_POLL_INTERVAL_SECONDS", "30"))
-EXPORTER_PORT = int(os.environ.get("PIPELINE_HEALTH_EXPORTER_PORT", "9100"))
+# NAMA SENGAJA BUKAN "PIPELINE_HEALTH_EXPORTER_PORT" -- Kubernetes otomatis
+# inject env var Docker-links-style dari nama Service (pola
+# "<SERVICE_NAME>_PORT", huruf besar underscore) ke SETIAP pod di namespace
+# yang sama. Service exporter ini bernama "pipeline-health-exporter" -> K8s
+# inject "PIPELINE_HEALTH_EXPORTER_PORT=tcp://<cluster-ip>:9100" yang BENTROK
+# dengan nama variabel kalau dipakai di sini (ditemukan saat verifikasi
+# Checkpoint 3 -- container CrashLoopBackOff, ValueError saat int() parsing
+# "tcp://...". Lihat milestones/3.5-monitoring-infra-pipeline-health/logs.md.
+EXPORTER_HTTP_PORT = int(os.environ.get("EXPORTER_HTTP_PORT", "9100"))
 
 _VERDICT_TO_VALUE = {"pass": 2.0, "flag": 1.0, "stop": 0.0}
 
@@ -168,8 +176,8 @@ def refresh_once(engine: sqlalchemy.engine.Engine, flow_name: str = FLOW_NAME) -
 def run_forever() -> None:
     logging.basicConfig(level=logging.INFO)
     engine = sqlalchemy.create_engine(os.environ["MONITORING_READER_DB_URL"])
-    start_http_server(EXPORTER_PORT)
-    logger.info("pipeline_health_exporter listening di port %d, interval poll %.0fs", EXPORTER_PORT, POLL_INTERVAL_SECONDS)
+    start_http_server(EXPORTER_HTTP_PORT)
+    logger.info("pipeline_health_exporter listening di port %d, interval poll %.0fs", EXPORTER_HTTP_PORT, POLL_INTERVAL_SECONDS)
     while True:
         refresh_once(engine)
         time.sleep(POLL_INTERVAL_SECONDS)

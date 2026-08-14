@@ -1,0 +1,29 @@
+# Milestone 3.5 -- scrape config Prometheus. 2 target lintas-namespace:
+# churn-api (namespace churn-prediction, M3.3) dan pipeline-health-exporter
+# (namespace monitoring, ini) -- keduanya diakses via DNS Service K8s
+# `<service>.<namespace>.svc.cluster.local`, TIDAK perlu ServiceMonitor/CRD
+# operator tambahan (konsisten pola manifest-driven infra/k8s/ yang sudah ada).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      - job_name: churn-api
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["churn-api.churn-prediction.svc.cluster.local:80"]
+
+      - job_name: pipeline-health-exporter
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["pipeline-health-exporter.monitoring.svc.cluster.local:9100"]
