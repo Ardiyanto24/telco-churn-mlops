@@ -109,3 +109,25 @@ Mitigasi paling menyasar akar masalah ini adalah mengubah `write_predictions` da
 **Pemicu peninjauan:** M3.x (`mlops-03-deployment-observability.md`) mulai membangun real-time API sungguhan -- saat itu, gerbang parity CI perlu diperluas untuk memanggil endpoint HTTP sungguhan (bukan cuma `predict_active()` langsung), dan `tests/orchestration/test_batch_scoring.py`'s test parity yang sudah ada bisa jadi dasar/pola, bukan digantikan.
 
 **Referensi:** `milestones/2.7-cicd-verifikasi-parity/decisions.md`, `milestones/2.5-batch-scoring-dag/decisions.md` Keputusan #3 (catatan salah ketik dokumen sumber "verifikasi otomatis dibangun di Milestone 2.6" seharusnya 2.7 -- sudah dikonfirmasi benar M2.7 di milestone ini).
+
+---
+
+## KT-8 — Deployment real-time API ke Kubernetes VM/cloud always-on (bukan Docker Desktop lokal)
+
+**Muncul saat:** Milestone 3.3, sebelum plan ditulis (`AskUserQuestion` dua putaran ke user).
+
+**Konteks:** Milestone 3.3 (`mlops-03-deployment-observability.md`) meminta real-time API (M3.2) di-deploy ke Kubernetes, tanpa mengunci target konkret (dokumen arsitektur Bagian 10 sengaja membiarkan ini terbuka). User awalnya mengira tujuan "auto predict saat data sintesis baru masuk tanpa perlu menghidupkan komputer" bergantung pada keputusan ini -- diklarifikasi TIDAK: tujuan itu sudah terpenuhi sejak Milestone 2.9 (trigger Postgres `pg_net` -> GitHub `repository_dispatch` -> GitHub Actions, sepenuhnya cloud-based, TIDAK melibatkan Kubernetes sama sekali). Real-time API (dipanggil sinkron per-kejadian oleh pemanggil eksternal) adalah use case BERBEDA dari batch auto-scoring.
+
+User diberi 2 opsi: (a) Docker Desktop Kubernetes lokal -- gratis, zero setup baru, TAPI API cuma reachable selama komputer user menyala; (b) hosting always-on di luar komputer user -- opsi termurah yang diriset adalah VPS gratis (Oracle Cloud Always Free) menjalankan k3s.
+
+**Riset Oracle Cloud Always Free (2026-08-14):** Kuota compute saat ini 2 OCPU + 12GB RAM (VM ARM Ampere A1) -- SECARA TEKNIS cukup untuk k3s + API ini (image 1.63GB, kebutuhan RAM runtime jauh di bawah 12GB, dikonfirmasi observasi `docker stats` M3.3 Checkpoint 3: idle ~364MiB, puncak beban ~387MiB). TAPI Oracle **diam-diam memotong kuota ini separuh** (dari 4 OCPU/24GB) pertengahan Juni 2026 TANPA pengumuman resmi -- pengguna baru tahu setelah instance mereka mati sendiri; instance yang melebihi kuota baru SEDANG dihapus otomatis (per artikel InfoQ Juli 2026, proses berjalan sekitar 18 Agustus 2026). Risiko tambahan: Oracle Always Free berbasis ARM, sedangkan image Docker proyek ini dibangun x86_64 -- kompatibilitas arm64 (lightgbm/xgboost/dst) belum pernah diverifikasi.
+
+**Keputusan untuk sekarang:** Pakai (a) Docker Desktop Kubernetes lokal (lihat `milestones/3.3-deployment-kubernetes/decisions.md` Keputusan #1, dan `docs/keterbatasan-diterima.md` KD-2 untuk penjelasan lengkap kenapa ini diterima).
+
+**Kenapa belum diputuskan permanen sekarang:** (1) Tujuan asli user tidak bergantung pilihan ini (sudah terpenuhi M2.9); (2) real-time API belum punya pemanggil eksternal nyata yang butuh uptime 24/7 -- investasi hosting always-on belum punya manfaat konkret; (3) opsi termurah (Oracle Cloud) punya riwayat ketidakstabilan kuota yang baru saja terjadi, butuh waktu untuk terbukti stabil kembali sebelum dipercaya untuk kebutuhan produksi; (4) kompleksitas tambahan (setup VM, jaringan/firewall, verifikasi ulang image arm64) untuk user yang mengaku belum familiar Kubernetes tidak sepadan tanpa kebutuhan konkret sekarang.
+
+**Pemicu peninjauan:** (a) Ada kebutuhan konkret real-time API diakses pemanggil eksternal sungguhan (bukan portofolio/demo semata) -- ATAU (b) kondisi kuota Always Free Oracle Cloud (atau alternatif setara) terbukti stabil kembali dalam jangka waktu wajar (mis. tidak ada perubahan mendadak lagi selama beberapa bulan) -- ATAU (c) user secara eksplisit ingin evaluasi ulang meski belum ada pemicu (a)/(b).
+
+**Opsi yang sudah dieksplorasi (bukan keputusan final, referensi untuk peninjauan nanti):** VPS gratis (Oracle Cloud Always Free + k3s) -- opsi termurah teridentifikasi; cloud-managed K8s berbayar (GKE/EKS/AKS) -- lebih stabil/matang tapi biaya berkelanjutan tanpa kebutuhan konkret saat ini.
+
+**Referensi riset:** [Oracle Quietly Halves Free Tier Ampere A1 Compute Limits — InfoQ](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/), [Always Free Resources — Oracle Docs](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm).
