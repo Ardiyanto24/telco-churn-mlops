@@ -1,15 +1,19 @@
-# Milestone 3.5/3.6 -- dashboard Grafana di-provision deklaratif (ConfigMap,
-# bukan diklik manual di UI) -- reproducible lintas restart/redeploy pod.
-# Nama metric di panel PERSIS sama dengan yang sudah terverifikasi nyata
-# (M3.5: http_request_duration_seconds/http_requests_total dari
-# instrumentator; pipeline_flow_last_status/quality_gate_last_verdict/
-# predictions_last_write_age_seconds dari pipeline_health_exporter. M3.6:
-# feature_drift_psi/feature_drift_pvalue/feature_drift_verdict dari
-# drift_exporter).
+# Milestone 3.5/3.6/3.8 -- dashboard Grafana di-provision deklaratif
+# (ConfigMap, bukan diklik manual di UI) -- reproducible lintas
+# restart/redeploy pod. Nama metric di panel PERSIS sama dengan yang sudah
+# terverifikasi nyata (M3.5: http_request_duration_seconds/
+# http_requests_total dari instrumentator; pipeline_flow_last_status/
+# quality_gate_last_verdict/predictions_last_write_age_seconds dari
+# pipeline_health_exporter. M3.6: feature_drift_psi/feature_drift_pvalue/
+# feature_drift_verdict dari drift_exporter).
 #
 # Panel drift M3.6 ditambah ke dashboard yang SUDAH ADA (churn-monitoring-m35)
 # -- BUKAN dashboard baru, sesuai forward-compat M3.5 (lihat
 # milestones/3.6-monitoring-drift-kualitas-model/decisions.md Keputusan #8).
+# M3.8 (Dashboard dan Alerting Terpadu) HANYA memperbarui judul di sini untuk
+# mencerminkan cakupan 3 pilar yang sudah tergabung sejak M3.6 -- uid TETAP
+# churn-monitoring-m35 (tidak ubah link lama). Lihat
+# milestones/3.8-dashboard-alerting-terpadu/decisions.md.
 #
 # 2 ConfigMap: provider (memberitahu Grafana folder mana yang berisi
 # dashboard JSON) + dashboard JSON itu sendiri -- konvensi provisioning
@@ -40,7 +44,7 @@ metadata:
 data:
   churn-monitoring.json: |
     {
-      "title": "Churn Prediction -- Infra & Pipeline Health (M3.5)",
+      "title": "Churn Prediction -- Unified Monitoring (Infra, Pipeline, Drift)",
       "uid": "churn-monitoring-m35",
       "timezone": "browser",
       "refresh": "30s",
