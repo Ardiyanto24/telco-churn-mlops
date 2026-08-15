@@ -147,3 +147,19 @@ User diberi 2 opsi: (a) Docker Desktop Kubernetes lokal -- gratis, zero setup ba
 **Pemicu peninjauan:** Real-time API punya pemanggil eksternal nyata (bukan portofolio/demo/verifikasi manual semata) — trigger yang SAMA dengan KT-5/7/8, konsisten satu payung kondisi "real-time API mulai dipakai sungguhan".
 
 **Referensi:** `milestones/3.6-monitoring-drift-kualitas-model/decisions.md` Keputusan #2, `docs/keputusan-tertunda.md` KT-5/KT-7/KT-8 (pola sama).
+
+---
+
+## KT-10 — Tujuan akhir webhook notifikasi retraining (web chat simulasi tim, di luar cakupan proyek)
+
+**Muncul saat:** Milestone 3.7, sebelum plan ditulis (`AskUserQuestion` dua putaran ke user).
+
+**Konteks:** Milestone 3.7 minta jalur notifikasi konkret ke "tim Data Scientist" saat drift (M3.6) melewati ambang batas (Bagian 5.3 dokumen arsitektur, forced). User menyampaikan sedang membangun **web chat terpisah** (satu layar bisa menampilkan banyak "posisi"/peran, simulasi tim) yang akan jadi tujuan akhir notifikasi ini — TAPI web chat itu sendiri **di luar cakupan proyek `deployment-mlops` ini** (proyek frontend terpisah, belum dibangun saat M3.7 dikerjakan).
+
+**Keputusan untuk sekarang:** Contact point webhook Grafana (`infra/k8s/monitoring/grafana-alerting-configmap.yaml`) diarahkan ke [webhook.site](https://webhook.site) (endpoint uji sementara, gratis, tanpa login) — dipakai HANYA untuk memverifikasi mekanisme end-to-end (KK1 M3.7, lihat `milestones/3.7-jalur-notifikasi-retraining/logs.md`), BUKAN tujuan produksi. URL dikonfigurasi lewat Secret K8s (`DRIFT_NOTIFICATION_WEBHOOK_URL`, `$__env{}` templating di provisioning YAML) — sengaja TIDAK hardcode ke file yang dicommit, supaya mengganti tujuan URL nanti (ke API web chat asli) cukup 1 `kubectl patch` + restart Grafana, tanpa ubah kode/manifest.
+
+**Kenapa belum diputuskan sekarang:** Web chat tujuan akhir belum dibangun (proyek terpisah, timeline di luar kendali/kendali proyek ini) — mengarahkan webhook ke sana sekarang tidak mungkin secara teknis (URL/endpoint belum ada). Payload webhook Grafana (JSON generik, `alerts[]` dengan `labels`/`annotations`/`status`/`startsAt`/`endsAt`) sudah didesain generik dan terdokumentasi (`milestones/3.7-.../decisions.md`) supaya siap dikonsumsi begitu web chat punya endpoint penerima.
+
+**Pemicu peninjauan:** Web chat user selesai dibangun dan punya endpoint/API yang bisa menerima webhook — saat itu, cukup ganti nilai `DRIFT_NOTIFICATION_WEBHOOK_URL` di Secret `monitoring-secrets` (namespace `monitoring`) ke URL endpoint web chat yang sesungguhnya, verifikasi ulang KK1 M3.7 terhadap tujuan baru.
+
+**Referensi:** `milestones/3.7-jalur-notifikasi-retraining/decisions.md`, `infra/k8s/monitoring/grafana-alerting-configmap.yaml`.
