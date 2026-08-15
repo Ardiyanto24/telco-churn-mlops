@@ -1,6 +1,16 @@
-# Milestone 3.5 -- provisioning datasource Grafana deklaratif (bukan diklik
-# manual di UI) -- reproducible lintas restart/redeploy pod Grafana. File ini
-# di-mount ke /etc/grafana/provisioning/datasources/ (konvensi Grafana).
+# Milestone 3.5/3.9 -- provisioning datasource Grafana deklaratif (bukan
+# diklik manual di UI) -- reproducible lintas restart/redeploy pod Grafana.
+# File ini di-mount ke /etc/grafana/provisioning/datasources/ (konvensi
+# Grafana).
+#
+# Milestone 3.9 -- datasource KEDUA (PostgreSQL) ditambah di sini -- dipakai
+# panel dashboard yang dimigrasi dari Prometheus ke monitoring.metrics_snapshot
+# (Checkpoint 6-8), realisasi Bagian 8.3 dokumen arsitektur ("PostgreSQL
+# sumber utama data monitoring"). Kredensial (role monitoring_metrics_reader,
+# M3.9 Checkpoint 1, SELECT-only ke monitoring.metrics_snapshot SAJA) TIDAK
+# hardcode -- $__env{} dibaca dari Secret monitoring-secrets saat runtime,
+# pola sama alerting M3.7. Lihat
+# milestones/3.9-penyimpanan-data-monitoring-postgresql/decisions.md.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,4 +26,19 @@ data:
         access: proxy
         url: http://prometheus.monitoring.svc.cluster.local:9090
         isDefault: true
+        editable: false
+      - name: PostgreSQL Monitoring
+        uid: postgres-monitoring
+        type: postgres
+        access: proxy
+        url: $__env{GRAFANA_POSTGRES_MONITORING_HOST}
+        database: $__env{GRAFANA_POSTGRES_MONITORING_DATABASE}
+        user: $__env{GRAFANA_POSTGRES_MONITORING_USER}
+        secureJsonData:
+          password: $__env{GRAFANA_POSTGRES_MONITORING_PASSWORD}
+        jsonData:
+          sslmode: require
+          postgresVersion: 1500
+          timescaledb: false
+        isDefault: false
         editable: false
