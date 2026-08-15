@@ -15,3 +15,10 @@ build/
 htmlcov/
 mlruns/
 mlruns.db
+
+# Milestone 3.10 -- API publik (Cloudflare Worker) + dashboard publik
+# (Next.js) hidup sebagai repo git TERPISAH di subfolder ini, bukan
+# bagian repo deployment-mlops -- lihat CLAUDE.md "Status Saat Ini" dan
+# milestones/3.10-api-publik-dashboard-monitoring/decisions.md.
+public-api/
+public-dashboard/
