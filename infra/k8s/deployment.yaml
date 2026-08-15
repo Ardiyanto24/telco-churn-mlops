@@ -83,17 +83,20 @@ spec:
               port: 8000
             periodSeconds: 5
             failureThreshold: 3
-          # Berbasis observasi nyata `docker stats` (Keputusan #5), BUKAN
-          # tebakan -- idle ~364MiB/~0.2% CPU; puncak 50 request /predict
-          # PARALEL ~387MiB/~102% CPU (1 core penuh). Lihat
-          # milestones/3.3-deployment-kubernetes/logs.md Checkpoint 3 untuk
-          # angka mentah lengkap. requests mendekati baseline idle (jaminan
-          # scheduling), limits ~2x margin di atas puncak yang teramati
-          # (memori) / headroom ~1.5x di atas puncak CPU (hindari throttling
-          # saat burst sedikit lebih besar) -- tetap "estimasi awal" (KK3
-          # sumber), disempurnakan Milestone 3.11 berdasar metrik native K8s
-          # (kubectl top, bukan lagi proxy docker stats) -- lihat
-          # milestones/3.11-.../decisions.md.
+          # RE-VALIDASI Milestone 3.11 dengan metrik NATIVE Kubernetes
+          # (kubectl top + metrics-server, BUKAN lagi proxy `docker stats`
+          # M3.3) -- nilai TIDAK berubah, terbukti sudah tepat. Uji beban
+          # bertingkat (1/10/50/100 request /predict paralel, lihat
+          # milestones/3.11-.../logs.md Checkpoint 4-5) menemukan idle
+          # steady-state ~89-321m CPU / 340-341Mi memory, dan PUNCAK
+          # TERTINGGI di SEMUA level cuma ~1122m CPU / 462Mi memory --
+          # requests (200m/400Mi) tetap margin wajar di atas idle (tidak
+          # boros), limits (1500m/768Mi) tetap headroom cukup di atas
+          # puncak (~34%/~66%). Konkurensi >=50 memicu restart nyata via
+          # livenessProbe, TAPI TERBUKTI BUKAN karena CPU throttled/OOM --
+          # root cause real-time API (M3.2) memproses request secara
+          # efektif single-worker (KD-3, docs/keterbatasan-diterima.md),
+          # di luar cakupan resource sizing K8s milestone ini.
           resources:
             requests:
               cpu: "200m"
