@@ -31,3 +31,26 @@
 **Perbaikan runbook yang dilakukan:** Ditambahkan catatan env var koneksi (`QUALITY_GATE_DB_URL` dari `.env`) di Diagnosis langkah 1 entri "2b" (`docs/07-runbook-operasional/runbook-operasional.md`).
 
 **Kesimpulan:** 4/5 butir ekspektasi MATCH sempurna, 1 butir (E5) MATCH dengan deviasi kecil yang langsung diperbaiki di tempat. Simulasi 1 SELESAI — teknik gerbang kualitas data terisolasi terbukti aman (tidak menyentuh baseline/data produksi), mekanisme end-to-end (gerbang → tabel riwayat → Prometheus exporter → Grafana alert → webhook) terbukti utuh bekerja untuk `source_table` baru sekalipun (dinamis, bukan hardcode).
+
+---
+
+## Simulasi 2 — Rollback Model
+
+**Ditulis:** sebelum Task 16 (eksekusi) dijalankan.
+
+**Kondisi awal (dicek read-only sebelum rancangan ini dikunci):** `resolve_alias_version("champion")` = **versi 1**. Registry punya 5 versi terdaftar (1-5, dicek via `MlflowClient().search_model_versions()`). Versi TARGET rollback sementara: **versi 5** (versi tertinggi/terbaru, jelas valid dan sudah teregistrasi — dipakai HANYA untuk uji mekanisme alias-swap, BUKAN klaim versi 5 "lebih baik").
+
+**Teknik:** `set_active_alias(version, alias="champion")` (`src/churn_prediction/inference/registry.py`) — promosikan alias `champion` ke versi 5, verifikasi, LALU kembalikan ke versi 1 (kondisi awal) sebagai bagian dari task yang SAMA (pola M2.8/M3.4).
+
+**Ekspektasi hasil terukur (DIKUNCI sebelum eksekusi):**
+
+| # | Ekspektasi | Cara verifikasi |
+|---|---|---|
+| E1 | Setelah `set_active_alias("5", "champion")`, `resolve_alias_version("champion")` mengembalikan `"5"` SEGERA (resolve query langsung ke registry MLflow, bukan cache) | Panggil `resolve_alias_version("champion")` tepat setelah `set_active_alias()` |
+| E2 | Setelah `set_active_alias("1", "champion")` (restore), `resolve_alias_version("champion")` kembali ke `"1"` | Panggil ulang `resolve_alias_version("champion")` |
+| E3 | Tidak ada error/exception di kedua pemanggilan `set_active_alias()` | Observasi langsung eksekusi |
+| E4 | Entri runbook "4. Rollback Mendesak — Versi Model" bisa diikuti PERSIS tanpa ambigu soal command/cara verifikasi | Diikuti manual Task 16, dicatat kalau ada langkah ambigu/kurang |
+
+**Catatan risiko:** Real-time API `churn-api` (kalau pod live sedang berjalan) akan mendeteksi perubahan alias lewat refresh loop ~30 detik (M3.4) — SELAMA window singkat ini (promosi→restore), request `/predict` nyata (kalau ada) akan diproses model versi 5, bukan versi 1. Window ini dijaga seminimal mungkin (restore SEGERA setelah E1 diverifikasi, bukan ditunda).
+
+**Audit (diisi SETELAH Task 16 selesai):** `[DIISI SETELAH EKSEKUSI]`
