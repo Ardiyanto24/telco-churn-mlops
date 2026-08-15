@@ -20,9 +20,16 @@
 # tanpa beban ekstrem, dan cukup jauh di atas idle segar (35%) untuk
 # tidak flapping terus-menerus saat benar-benar idle.
 #
-# minReplicas:1/maxReplicas:3 -- node docker-desktop punya ~4 core total
-# (kubectl top nodes M3.11 Checkpoint 3: 4068m), muat nyaman untuk 2-3
-# pod @ limits.cpu 1500m tanpa over-commit ekstrem.
+# minReplicas:1/maxReplicas:3 -- node docker-desktop punya ~12 core total
+# (dikoreksi dari salah baca awal "~4 core": kubectl top nodes M3.11 CP3
+# menunjukkan 4068m/33% pemakaian SAAT ITU, bukan kapasitas total --
+# 4068/0.33 ~= 12 core). TETAP dipertahankan maxReplicas:3 (bukan
+# dinaikkan) -- uji coba terkontrol Checkpoint 6 (scale-up nyata ke 3
+# replica) MEMBUKTIKAN kapasitas RAW CPU bukan pembatas sebenarnya:
+# ketiga pod sempat 0/1 Not Ready BERSAMAAN bukan karena node kehabisan
+# core, tapi kontensi/karakteristik single-worker tiap pod (KD-3) --
+# menaikkan maxReplicas lebih tinggi TIDAK akan menghindari pola ini,
+# konsisten prinsip "tidak boros tanpa manfaat nyata" KK2 M3.11.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
