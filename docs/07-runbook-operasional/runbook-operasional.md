@@ -78,7 +78,7 @@ Dua sub-kasus BERBEDA — bedakan dulu sebelum ambil langkah, root cause dan res
 **Gejala:** Notifikasi webhook alert `QualityGateStop` (M3.8), ATAU flow run Prefect berstatus `Completed` TAPI tidak ada baris baru di `predictions.batch_predictions` (gerbang M2.4 menghentikan scoring SEBELUM tahap tulis).
 
 **Diagnosis:**
-1. Query `quality.gate_run_history`: `SELECT source_table, verdict, run_at FROM quality.gate_run_history WHERE source_table = '<source_table>' ORDER BY run_at DESC LIMIT 5;` — verdict `stop` berarti deviasi persentase (NULL rate atau distribusi kategorikal) melewati ambang stop dibanding baseline (M2.4).
+1. Query `quality.gate_run_history`: `SELECT source_table, verdict, run_at FROM quality.gate_run_history WHERE source_table = '<source_table>' ORDER BY run_at DESC LIMIT 5;` — verdict `stop` berarti deviasi persentase (NULL rate atau distribusi kategorikal) melewati ambang stop dibanding baseline (M2.4). Koneksi: env var `QUALITY_GATE_DB_URL` (dari `.env` lokal, role least-privilege `quality_gate`, M2.4).
 2. Bandingkan run yang stop dengan histori 5 run sebelumnya — deviasi mendadak (mis. NULL rate melonjak) mengindikasikan masalah di sumber data (generator/koneksi), bukan bug kode gerbang itu sendiri (gerbang M2.4 SUDAH diverifikasi bekerja benar berulang kali sejak M2.4-3.11).
 3. **Peringatan M2.6**: baseline gerbang bisa tercemar oleh run skala kecil/uji coba (root cause sama pernah terjadi M2.6/M2.8) — cek apakah verdict stop ini genuinely karena data source bermasalah, atau baseline yang perlu dikalibrasi ulang.
 
