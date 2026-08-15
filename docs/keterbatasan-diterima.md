@@ -49,3 +49,22 @@ Opsi always-on termurah yang diriset (VPS gratis Oracle Cloud Always Free + k3s)
 **Pemicu peninjauan ulang:** Sama dengan KT-8 (`docs/keputusan-tertunda.md`) -- (a) ada kebutuhan konkret pemanggil eksternal nyata; (b) kuota Always Free (Oracle Cloud atau alternatif setara) terbukti stabil kembali; (c) user eksplisit ingin evaluasi ulang.
 
 **Referensi riset:** [Oracle Quietly Halves Free Tier Ampere A1 Compute Limits — InfoQ](https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/), [Always Free Resources — Oracle Docs](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm).
+
+---
+
+## KD-3 — Real-time API (M3.2) memproses request secara efektif single-worker, tidak stabil pada beban konkuren tinggi
+
+**Muncul saat:** Milestone 3.11, Checkpoint 4 (uji beban terkontrol bertingkat dengan `kubectl top` native, dipakai untuk dasar resource sizing).
+
+**Konteks:** Uji beban `/predict` pada 4 level konkurensi (1/10/50/100 request paralel, masing-masing 60 detik) menemukan CPU puncak pod **konsisten di kisaran ~1,0-1,12 core (1012-1122m) di SEMUA level** — tidak naik proporsional dengan jumlah request paralel. Ini bukti kuat real-time API memproses request secara efektif SATU PER SATU (worker/event loop tunggal terhadap kerja inference yang CPU-bound), bukan benar-benar paralel di dalam satu pod. Akibatnya, pada konkurensi ≥10, request tambahan mengantre alih-alih diproses paralel — `/healthz`/`/readyz` tidak sempat dijawab tepat waktu (`context deadline exceeded`), error rate request `/predict` naik drastis (95,4% pada konkurensi 10, 99,7% pada 50, 100% pada 100), dan pada konkurensi 50 DAN 100 memicu restart nyata via `livenessProbe` (Kubernetes betul-betul mem-`Kill` lalu recreate container, pulih otomatis ~85 detik tiap kali, TANPA kehilangan data — self-healing bekerja seperti dirancang M3.2/M3.3 Keputusan #3).
+
+**Kenapa diterima (bukan diperbaiki sekarang):** Root cause adalah desain concurrency di level KODE real-time API (kemungkinan satu worker Uvicorn/proses tanpa `run_in_threadpool` untuk kerja inference sinkron yang CPU-bound, memblokir event loop) — properti API itu sendiri (Milestone 3.2, jalur Orang #3 sebelumnya), BUKAN sesuatu yang bisa diperbaiki lewat penyesuaian `resources.requests`/`resources.limits` Kubernetes yang jadi cakupan M3.11. Mengubah arsitektur concurrency API (mis. menambah worker Uvicorn, memindah inference ke thread pool) adalah perubahan kode signifikan di luar cakupan milestone ini (`CLAUDE.md` "Batas Implementasi Saat Ini" — tidak membangun kapabilitas di luar cakupan tanpa perluasan eksplisit dari user), dan belum ada kebutuhan konkret (belum ada pemanggil eksternal nyata dengan pola trafik konkuren tinggi — konsisten KD-2/KT-8/KT-9/KT-12).
+
+**Dampak & mitigasi yang sudah ada:**
+- Bukti eksplisit bahwa `resources.limits.cpu` SAAT INI (1500m) **BUKAN** penyebab restart/error — puncak nyata yang pernah teramati (1122m) masih di bawah limit dengan headroom wajar. Menaikkan limit CPU TIDAK akan memperbaiki masalah ini (root cause bukan CPU throttled/OOM).
+- `livenessProbe`/`startupProbe` (M3.2/M3.3) TERBUKTI bekerja benar sebagai jaring pengaman — pod yang macet di-restart otomatis dan pulih tanpa intervensi manual, konsisten desain "restart proses yang macet" (Keputusan #3 M3.3).
+- Skala trafik nyata terhadap real-time API sejauh ini (M3.2-3.5 dan M3.11) murni verifikasi manual — belum ada bukti pola trafik produksi konkuren tinggi yang benar-benar dirugikan oleh keterbatasan ini.
+
+**Pemicu peninjauan ulang:** (a) Ada kebutuhan konkret pemanggil eksternal nyata dengan pola trafik konkuren (bukan verifikasi manual) — evaluasi ulang arsitektur concurrency API (M3.2) saat itu; (b) user eksplisit ingin evaluasi ulang meski belum ada pemicu (a) — konsisten pola KD-1/KD-2/KT-8/9/12.
+
+**Referensi:** `milestones/3.11-rollback-deployment-resource-sizing/logs.md` Checkpoint 4 (tabel lengkap 4 level konkurensi + bukti `kubectl get events`/`describe pod`), `milestones/3.11-rollback-deployment-resource-sizing/raw-data/` (CSV mentah).

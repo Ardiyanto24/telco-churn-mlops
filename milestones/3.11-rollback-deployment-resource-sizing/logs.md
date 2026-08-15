@@ -37,3 +37,26 @@
 - Fix: `kubectl patch deployment metrics-server -n kube-system --type=json -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'` — command persis didokumentasikan di `infra/k8s/metrics-server-patch.yaml` untuk reproducibility.
 - `kubectl rollout status deployment/metrics-server -n kube-system` → sukses setelah patch.
 - Verifikasi: `kubectl top nodes` → `docker-desktop 4068m 33% 1883Mi 71%`. `kubectl top pods -n churn-prediction` → `churn-api-578474d56-pfd5j 128m 341Mi` — angka NATIVE Kubernetes (bukan proxy `docker stats`), memory (341Mi) mendekati kisaran idle lama M3.3 (~364MiB) sebagai sanity check kasar; CPU (128m) sedikit di atas catatan lama M3.3 (~0.2%), kemungkinan residual dari rangkaian rollout/rollback Checkpoint 2 yang baru selesai — akan diverifikasi ulang dengan baseline idle bersih di Checkpoint 4.
+
+## Checkpoint 4 — Uji Beban Terkontrol dengan Metrik Native K8s
+
+`scripts/k8s_resource_load_test.py` ditulis dan diverifikasi smoke test bersih (concurrency=1/10 detik, 72 request, 0 error) sebelum dipakai skala penuh. Seluruh CSV mentah tersimpan di `milestones/3.11-rollback-deployment-resource-sizing/raw-data/`.
+
+**Baseline idle** (120 detik, tanpa trafik): memory FLAT ~340-341Mi sepanjang window. CPU sampel pertama 683m (residual transient dari smoke test sebelumnya yang baru selesai), turun dan stabil ke **~89-142m** untuk mayoritas window — dipakai sebagai idle steady-state.
+
+**Uji beban bertingkat (masing-masing 60 detik, jeda ~30 detik antar level):**
+
+| Konkurensi | Request total | Error | Error % | Latency p50/p95 (ms) | CPU puncak/rata (m) | Memory puncak/rata (Mi) | Insiden |
+|---|---|---|---|---|---|---|---|
+| 1 | 456 | 0 | 0% | 115 / 245 | 1122 / 888 | 341 / 341 | - |
+| 10 | 2292 | 2187 | 95,4% | 36 / 1351 | 1062 / 764 | 359 / 349 | Readiness+liveness probe timeout (`context deadline exceeded`), TANPA restart |
+| 50 | 7680 | 7659 | 99,7% | 208 / 593 | 1012 / 658 | 367 / 361 | **Restart nyata** (`RESTARTS 5→6`) -- liveness probe gagal 3x berturut, pod di-kill+recreate Kubernetes, pulih otomatis ~85 detik |
+| 100 | 6576 | 6576 | 100% | 557 / 2181 | 1089 / 720 | 462 / 451 | **Restart nyata kedua** (`RESTARTS 6→7`), pulih otomatis ~85 detik |
+
+**Temuan kunci (signifikan, di luar dugaan awal):** CPU puncak **KONSISTEN di kisaran ~1,0-1,12 core (1012-1122m) di SEMUA level konkurensi 1-100** -- TIDAK naik proporsional dengan jumlah request paralel. Ini bukti kuat bahwa real-time API (M3.2) memproses request secara efektif SATU PER SATU (single-worker/blocking event loop terhadap kerja inference yang CPU-bound), bukan benar-benar paralel di dalam satu pod -- request tambahan mengantre alih-alih menambah pemakaian CPU. Akibatnya:
+- **Limit CPU (1500m) SUDAH punya headroom memadai** terhadap puncak nyata yang pernah teramati (1122m) -- bukan sumber restart/error.
+- **Root cause restart & error rate tinggi BUKAN kekurangan resource K8s** -- pod di-restart karena `/healthz`/`/readyz` tidak sempat dijawab tepat waktu ketika worker tunggal sibuk memproses antrean request yang menumpuk, BUKAN karena CPU throttled/OOM oleh cgroup.
+- Memory naik terlihat jelas cuma di level 100 (peak 462Mi, dari baseline ~341Mi) -- kemungkinan buffer request yang mengantre di worker tunggal, TAPI masih jauh di bawah limit 768Mi (headroom ~40%).
+- **Kedua restart adalah self-healing Kubernetes yang bekerja SEPERTI DIRANCANG** (livenessProbe M3.2/M3.3 Keputusan #3 -- restart proses yang macet) -- pulih otomatis ~85 detik tiap kali (konsisten pola M3.2 KK3 ~100 detik retry MLflow), TANPA intervensi manual, TANPA kehilangan data.
+
+**Implikasi untuk cakupan M3.11:** Karakteristik arsitektur single-worker ini adalah properti kode real-time API (M3.2), BUKAN sesuatu yang bisa diperbaiki lewat penyesuaian `resources.requests`/`limits` K8s (di luar cakupan M3.11 -- lihat "Batas Implementasi Saat Ini" CLAUDE.md, mengubah desain concurrency API adalah scope M3.2). Dicatat sebagai keterbatasan diterima baru (KD-3, `docs/keterbatasan-diterima.md`) -- lihat `decisions.md` untuk detail lengkap.

@@ -76,6 +76,22 @@
 
 ---
 
+## Keputusan #7 — Temuan Checkpoint 4 Dicatat sebagai KD-3 (Bukan Diperbaiki di M3.11)
+
+**Temuan:** Uji beban bertingkat (1/10/50/100 konkurensi, lihat `logs.md` Checkpoint 4) menemukan CPU puncak pod KONSISTEN di kisaran ~1,0-1,12 core di SEMUA level — bukti real-time API (M3.2) memproses request secara efektif single-worker, bukan paralel. Pada konkurensi ≥10, ini menyebabkan error rate tinggi dan 2x restart nyata (liveness probe timeout, pulih otomatis ~85 detik tiap kali).
+
+**Keputusan final:** Dicatat sebagai keterbatasan diterima BARU — **KD-3** (`docs/keterbatasan-diterima.md`) — BUKAN diperbaiki di M3.11. Root cause ada di level kode/arsitektur concurrency real-time API (M3.2), bukan resource sizing K8s (cakupan M3.11) — bukti kuat: CPU puncak TIDAK PERNAH mendekati limit 1500m di level manapun, jadi menaikkan limit CPU tidak akan menyelesaikan akar masalah.
+
+**Alasan:** Mengubah arsitektur concurrency API (mis. tambah worker Uvicorn, pindahkan inference ke thread pool) adalah perubahan kode signifikan di luar cakupan M3.11 (`CLAUDE.md` "Batas Implementasi Saat Ini") — dan belum ada pemanggil eksternal nyata dengan pola trafik konkuren tinggi yang dirugikan (konsisten KD-2/KT-8/KT-9/KT-12).
+
+**Opsi yang Dipertimbangkan tapi Ditolak:**
+- **Perbaiki arsitektur concurrency API sekarang** (mis. edit `src/churn_prediction/api/app.py` menambah worker/thread pool) — ditolak: di luar cakupan M3.11 yang eksplisit soal rollback deployment K8s dan resource sizing, bukan redesign API real-time (itu M3.2). Mengubahnya tanpa perluasan cakupan eksplisit dari user melanggar batas implementasi proyek ini.
+- **Naikkan resource limit CPU jauh lebih tinggi** dengan harapan memperbaiki stabilitas — ditolak berdasar BUKTI (CPU puncak tidak pernah mendekati limit saat ini di level manapun) bahwa ini tidak akan menyelesaikan akar masalah, cuma membuang resource tanpa manfaat nyata (bertentangan prinsip "tidak boros" KK2 M3.11 sendiri).
+
+**Tidak ada alternatif dipertimbangkan untuk cara mendokumentasikannya** — pola `docs/keterbatasan-diterima.md` sudah standar proyek untuk temuan sekelas ini (preseden KD-1/KD-2).
+
+---
+
 ## Nilai Konkret Hasil Implementasi
 
 `[DIISI CHECKPOINT 7]` — akan berisi:
