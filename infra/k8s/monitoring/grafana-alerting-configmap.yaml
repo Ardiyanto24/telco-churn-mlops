@@ -10,6 +10,20 @@
 # hardcode di file ini -- $__env{DRIFT_NOTIFICATION_WEBHOOK_URL} dibaca dari
 # Secret monitoring-secrets (envFrom sudah ter-mount sejak M3.5) saat
 # runtime. Lihat milestones/3.7-jalur-notifikasi-retraining/decisions.md.
+#
+# Milestone 3.8 -- EXTEND file ini (bukan file/ConfigMap baru) dengan
+# contact point + grup rule + route KEDUA untuk pilar pipeline & infra
+# health (M3.5: pipeline_flow_last_status/quality_gate_last_verdict dari
+# pipeline_health_exporter) -- kanal TERPISAH dari drift (webhook.site
+# berbeda, $__env{PIPELINE_NOTIFICATION_WEBHOOK_URL}) supaya pemisahan
+# kanal per pilar benar-benar bisa diverifikasi, bukan cuma label. Kedua
+# rule baru WAJIB pola 2-step (query mentah refId A + expression
+# `threshold` refId B) SEJAK AWAL -- reuse langsung fix bug M3.7 di bawah
+# (Grafana alerting mengevaluasi ALERTING dari nilai mentah non-zero kalau
+# condition menunjuk langsung ke query, REGARDLESS filter PromQL --
+# pipeline_flow_last_status/quality_gate_last_verdict sama-sama punya nilai
+# bermakna 0 yang kena bug identik). Lihat
+# milestones/3.8-dashboard-alerting-terpadu/decisions.md.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -26,6 +40,14 @@ data:
             type: webhook
             settings:
               url: $__env{DRIFT_NOTIFICATION_WEBHOOK_URL}
+              httpMethod: POST
+      - orgId: 1
+        name: pipeline-webhook
+        receivers:
+          - uid: pipeline-webhook-receiver
+            type: webhook
+            settings:
+              url: $__env{PIPELINE_NOTIFICATION_WEBHOOK_URL}
               httpMethod: POST
   rules.yaml: |
     apiVersion: 1
@@ -82,6 +104,95 @@ data:
                 http://localhost:3000/d/churn-monitoring-m35 (panel "PSI + p-value + Verdict
                 per Fitur"). Retraining tetap keputusan manual tim Data Scientist -- notifikasi
                 ini murni sinyal, bukan trigger otomatis.
+      - orgId: 1
+        name: pipeline-infra-health
+        folder: pipeline-infra-health
+        interval: 1m
+        rules:
+          - uid: pipeline-batch-failed
+            title: PipelineBatchFailed
+            # Sama alasan dgn rule drift di atas -- condition WAJIB expression
+            # Threshold (refId B), BUKAN langsung raw query (refId A).
+            # within_range [-0.5, 0.5] sengaja ISOLASI nilai 0 (Failed/
+            # Crashed) SAJA -- TIDAK termasuk -1 (belum pernah ada run,
+            # bukan kegagalan, akan selalu true tanpa jadwal cron aktif
+            # per KD-1/M2.5 kalau ikut ditangkap -- spam-alert terus).
+            condition: B
+            data:
+              - refId: A
+                datasourceUid: prometheus
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                model:
+                  expr: pipeline_flow_last_status{flow_name="milestone-2-5-batch-scoring"}
+                  instant: true
+                  refId: A
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: A
+                  conditions:
+                    - evaluator:
+                        type: within_range
+                        params: [-0.5, 0.5]
+                  refId: B
+            for: 0s
+            noDataState: OK
+            execErrState: Error
+            labels:
+              alert_category: pipeline_infra_failure
+              failure_type: batch_dag_failed
+            annotations:
+              summary: "Run terakhir flow batch scoring ({{ $labels.flow_name }}) berstatus Failed/Crashed"
+              description: >-
+                Flow Prefect {{ $labels.flow_name }} (M2.5/M2.9, batch scoring PostgreSQL)
+                gagal pada run terakhir yang tercatat -- pipeline_flow_last_status=0.
+                Cek Prefect Cloud UI untuk log run lengkap, dan dashboard:
+                http://localhost:3000/d/churn-monitoring-m35 (panel "Status Run Terakhir").
+                Bukan trigger otomatis apa pun -- murni sinyal untuk investigasi manual.
+          - uid: quality-gate-stop
+            title: QualityGateStop
+            # Pola PERSIS sama dengan rule drift M3.7 (encoding verdict
+            # identik: 2=pass/1=flag/0=stop) -- evaluator lt params [1]
+            # reuse langsung, tidak perlu variasi baru.
+            condition: B
+            data:
+              - refId: A
+                datasourceUid: prometheus
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                model:
+                  expr: quality_gate_last_verdict
+                  instant: true
+                  refId: A
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: A
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [1]
+                  refId: B
+            for: 0s
+            noDataState: OK
+            execErrState: Error
+            labels:
+              alert_category: pipeline_infra_failure
+              failure_type: quality_gate_stop
+            annotations:
+              summary: "Gerbang kualitas data untuk {{ $labels.source_table }} berstatus stop"
+              description: >-
+                Verdict gerbang kualitas data terbaru (M2.4) untuk source_table
+                {{ $labels.source_table }} adalah stop -- volume/null-proportion/distribusi
+                kategori menyimpang signifikan dari baseline rolling. Lihat dashboard:
+                http://localhost:3000/d/churn-monitoring-m35 (panel "Verdict Gerbang
+                Kualitas Data Terakhir"). Bukan trigger otomatis apa pun -- murni sinyal
+                untuk investigasi manual.
   policies.yaml: |
     apiVersion: 1
     policies:
@@ -93,3 +204,10 @@ data:
             object_matchers:
               - ["alert_category", "=", "drift_retraining"]
             repeat_interval: 4h
+          - receiver: pipeline-webhook
+            object_matchers:
+              - ["alert_category", "=", "pipeline_infra_failure"]
+            # Lebih pendek dari drift (4h) -- kegagalan infra/pipeline lebih
+            # operasional-mendesak daripada drift model. Provisional (belum
+            # ada SLA formal), pola sama repeat_interval drift M3.7.
+            repeat_interval: 1h
