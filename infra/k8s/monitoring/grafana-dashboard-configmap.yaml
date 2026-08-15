@@ -61,12 +61,12 @@ data:
           "id": 2,
           "type": "timeseries",
           "title": "Request Rate /predict (per status)",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
           "targets": [
             {
-              "expr": "sum(rate(http_requests_total{job=\"churn-api\",handler=\"/predict\"}[5m])) by (status)",
-              "legendFormat": "{{status}}"
+              "format": "time_series",
+              "rawSql": "SELECT computed_at AS time, labels->>'status' AS metric, value FROM monitoring.metrics_snapshot WHERE metric_name = 'api_request_rate_per_second' AND $__timeFilter(computed_at) ORDER BY computed_at"
             }
           ]
         },
@@ -74,21 +74,13 @@ data:
           "id": 3,
           "type": "timeseries",
           "title": "Latency /predict -- p50/p95/p99",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
           "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
           "targets": [
             {
-              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"churn-api\",handler=\"/predict\"}[5m])) by (le))",
-              "legendFormat": "p50"
-            },
-            {
-              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"churn-api\",handler=\"/predict\"}[5m])) by (le))",
-              "legendFormat": "p95"
-            },
-            {
-              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"churn-api\",handler=\"/predict\"}[5m])) by (le))",
-              "legendFormat": "p99"
+              "format": "time_series",
+              "rawSql": "SELECT computed_at AS time, CASE metric_name WHEN 'api_latency_p50_seconds' THEN 'p50' WHEN 'api_latency_p95_seconds' THEN 'p95' WHEN 'api_latency_p99_seconds' THEN 'p99' END AS metric, value FROM monitoring.metrics_snapshot WHERE metric_name IN ('api_latency_p50_seconds','api_latency_p95_seconds','api_latency_p99_seconds') AND $__timeFilter(computed_at) ORDER BY computed_at"
             }
           ]
         },
@@ -96,7 +88,7 @@ data:
           "id": 4,
           "type": "stat",
           "title": "Error Rate /predict (5m)",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 4, "w": 6, "x": 0, "y": 9 },
           "fieldConfig": {
             "defaults": {
@@ -114,7 +106,8 @@ data:
           },
           "targets": [
             {
-              "expr": "100 * sum(rate(http_requests_total{job=\"churn-api\",handler=\"/predict\",status=~\"4xx|5xx\"}[5m])) / sum(rate(http_requests_total{job=\"churn-api\",handler=\"/predict\"}[5m]))"
+              "format": "table",
+              "rawSql": "SELECT value FROM monitoring.metrics_snapshot WHERE metric_name = 'api_error_rate_percent' ORDER BY computed_at DESC LIMIT 1"
             }
           ]
         },
