@@ -60,3 +60,27 @@
 - **Kedua restart adalah self-healing Kubernetes yang bekerja SEPERTI DIRANCANG** (livenessProbe M3.2/M3.3 Keputusan #3 -- restart proses yang macet) -- pulih otomatis ~85 detik tiap kali (konsisten pola M3.2 KK3 ~100 detik retry MLflow), TANPA intervensi manual, TANPA kehilangan data.
 
 **Implikasi untuk cakupan M3.11:** Karakteristik arsitektur single-worker ini adalah properti kode real-time API (M3.2), BUKAN sesuatu yang bisa diperbaiki lewat penyesuaian `resources.requests`/`limits` K8s (di luar cakupan M3.11 -- lihat "Batas Implementasi Saat Ini" CLAUDE.md, mengubah desain concurrency API adalah scope M3.2). Dicatat sebagai keterbatasan diterima baru (KD-3, `docs/keterbatasan-diterima.md`) -- lihat `decisions.md` untuk detail lengkap.
+
+## Checkpoint 5 — Penyesuaian Resource Request/Limit
+
+**Analisis idle steady-state** (buang 5 sampel transien awal dari 22 sampel baseline idle CP4): CPU **89-321m (avg ~159m)**, memory **FLAT 340-341m (avg ~340,5Mi)**.
+
+**Analisis puncak** (dari 4 level uji beban CP4): CPU puncak tertinggi **1122m** (terjadi di konkurensi=1, BUKAN di konkurensi tertinggi -- konsisten temuan single-worker KD-3), memory puncak tertinggi **462Mi** (di konkurensi=100, saat request menumpuk).
+
+**Perbandingan vs konfigurasi saat ini:**
+
+| Field | Nilai saat ini | Data native K8s M3.11 | Margin |
+|---|---|---|---|
+| `requests.cpu` | 200m | idle steady 89-321m (avg ~159m) | ~1,3x di atas rata-rata idle -- cukup, tidak boros |
+| `requests.memory` | 400Mi | idle 340-341Mi | ~17% di atas idle -- tepat, tidak boros |
+| `limits.cpu` | 1500m | puncak tertinggi 1122m (SEMUA level, termasuk 2 insiden restart) | ~34% headroom -- CUKUP, restart TERBUKTI (KD-3) bukan karena CPU throttled |
+| `limits.memory` | 768Mi | puncak tertinggi 462Mi | ~66% headroom -- CUKUP, zero OOM event di seluruh 4 level + 2 restart |
+
+**Keputusan: RE-AFFIRM nilai existing (200m/400Mi requests, 1500m/768Mi limits) TANPA perubahan numerik** -- divalidasi dengan bukti metrik native Kubernetes (bukan lagi proxy `docker stats` M3.3), bukan sekadar dipertahankan tanpa diperiksa. Justifikasi:
+1. `requests` sudah punya margin wajar di atas idle riil -- tidak terbukti boros.
+2. `limits` sudah punya headroom di atas puncak TERTINGGI yang PERNAH teramati di SELURUH 4 level konkurensi (termasuk 2 kejadian restart nyata) -- restart itu sendiri TERBUKTI (KD-3) disebabkan probe timeout akibat arsitektur single-worker API, BUKAN CPU throttled atau OOM. Menaikkan limit CPU/memory TIDAK akan mencegah restart serupa terulang (root cause di luar resource sizing).
+3. Menaikkan limit tanpa bukti kebutuhan nyata akan MELANGGAR paruh KK2 M3.11 sendiri ("tidak boros dibanding kebutuhan nyata").
+
+**Penyesuaian dilakukan:** HANYA komentar penjelas di `deployment.yaml` (referensi data lama `docker stats` M3.3 diganti referensi data native K8s M3.11 + tautan ke `decisions.md`/`logs.md` Checkpoint 4-5) -- TIDAK ada perubahan `spec.containers[].resources` numerik. Ini deviasi kecil dari asumsi plan awal ("Terapkan nilai baru") -- didokumentasikan transparan di `report.md` bagian "Perubahan dari Plan Awal": plan mengasumsikan nilai akan berubah, bukti nyata menunjukkan nilai lama sudah tepat.
+
+**Verifikasi ulang (KK2):** Re-run beban puncak konkurensi=100 identik terhadap konfigurasi yang SAMA tidak dijalankan ulang -- akan menghasilkan restart identik tanpa informasi baru (data CP4 SUDAH mencakup skenario ini persis terhadap nilai `limits` yang sama, tidak berubah). Sebagai gantinya: dikonfirmasi pod dalam keadaan sehat stabil pasca-CP4 (`kubectl get pods` 1/1 Ready, `RESTARTS` tidak bertambah sejak insiden ke-2), dan re-affirm eksplisit bahwa TIDAK ADA event OOM (`OOMKilled`) tercatat di SELURUH 4 level uji beban CP4 -- HANYA event `Unhealthy`(probe)/`Killing`(liveness) yang tercatat, dikonfirmasi via `kubectl describe pod`/`kubectl get events` (lihat Checkpoint 4 di atas).
