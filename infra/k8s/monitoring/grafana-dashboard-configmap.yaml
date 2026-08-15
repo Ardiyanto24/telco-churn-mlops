@@ -121,7 +121,7 @@ data:
           "id": 6,
           "type": "stat",
           "title": "Status Run Terakhir -- milestone-2-5-batch-scoring",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 5, "w": 6, "x": 0, "y": 14 },
           "fieldConfig": {
             "defaults": {
@@ -141,25 +141,31 @@ data:
             "overrides": []
           },
           "targets": [
-            { "expr": "pipeline_flow_last_status{flow_name=\"milestone-2-5-batch-scoring\"}" }
+            {
+              "format": "table",
+              "rawSql": "SELECT value FROM monitoring.metrics_snapshot WHERE metric_name = 'pipeline_flow_status' AND labels->>'flow_name' = 'milestone-2-5-batch-scoring' ORDER BY computed_at DESC LIMIT 1"
+            }
           ]
         },
         {
           "id": 7,
           "type": "stat",
           "title": "Durasi Run Terakhir",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 5, "w": 6, "x": 6, "y": 14 },
           "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
           "targets": [
-            { "expr": "pipeline_flow_last_duration_seconds{flow_name=\"milestone-2-5-batch-scoring\"}" }
+            {
+              "format": "table",
+              "rawSql": "SELECT value FROM monitoring.metrics_snapshot WHERE metric_name = 'pipeline_flow_duration_seconds' AND labels->>'flow_name' = 'milestone-2-5-batch-scoring' ORDER BY computed_at DESC LIMIT 1"
+            }
           ]
         },
         {
           "id": 8,
           "type": "table",
           "title": "Verdict Gerbang Kualitas Data Terakhir (per source_table)",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 6, "w": 12, "x": 0, "y": 19 },
           "fieldConfig": {
             "defaults": {
@@ -172,18 +178,24 @@ data:
             "overrides": []
           },
           "targets": [
-            { "expr": "quality_gate_last_verdict", "format": "table", "instant": true }
+            {
+              "format": "table",
+              "rawSql": "SELECT DISTINCT ON (labels->>'source_table') labels->>'source_table' AS source_table, value FROM monitoring.metrics_snapshot WHERE metric_name = 'quality_gate_verdict' ORDER BY labels->>'source_table', computed_at DESC"
+            }
           ]
         },
         {
           "id": 9,
           "type": "table",
           "title": "Staleness Tulis-Balik predictions.batch_predictions (per source_table)",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 6, "w": 12, "x": 12, "y": 19 },
           "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
           "targets": [
-            { "expr": "predictions_last_write_age_seconds", "format": "table", "instant": true }
+            {
+              "format": "table",
+              "rawSql": "SELECT DISTINCT ON (labels->>'source_table') labels->>'source_table' AS source_table, value FROM monitoring.metrics_snapshot WHERE metric_name = 'predictions_staleness_seconds' ORDER BY labels->>'source_table', computed_at DESC"
+            }
           ]
         },
         {
