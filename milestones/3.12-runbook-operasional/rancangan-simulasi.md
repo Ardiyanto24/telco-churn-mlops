@@ -53,4 +53,15 @@
 
 **Catatan risiko:** Real-time API `churn-api` (kalau pod live sedang berjalan) akan mendeteksi perubahan alias lewat refresh loop ~30 detik (M3.4) — SELAMA window singkat ini (promosi→restore), request `/predict` nyata (kalau ada) akan diproses model versi 5, bukan versi 1. Window ini dijaga seminimal mungkin (restore SEGERA setelah E1 diverifikasi, bukan ditunda).
 
-**Audit (diisi SETELAH Task 16 selesai):** `[DIISI SETELAH EKSEKUSI]`
+**Audit (diisi SETELAH Task 16 selesai):**
+
+| # | Ekspektasi | Realisasi | Hasil |
+|---|---|---|---|
+| E1 | `set_active_alias("5","champion")` -> `resolve_alias_version("champion")` == `"5"` segera | Dijalankan persis, output `setelah promosi: 5` | **MATCH** |
+| E2 | `set_active_alias("1","champion")` (restore) -> `resolve_alias_version("champion")` == `"1"` | Dijalankan persis, output `setelah restore: 1` | **MATCH** |
+| E3 | Tidak ada error/exception di kedua pemanggilan | Kedua pemanggilan sukses tanpa traceback | **MATCH** |
+| E4 | Entri runbook "4" bisa diikuti PERSIS tanpa ambigu | Diagnosis langkah 1 dan Langkah Respons 1-2 diikuti APA ADANYA (command Python persis seperti tertulis), berhasil first-try tanpa modifikasi. TIDAK ada gap ditemukan pada bagian yang diuji. | **MATCH** |
+
+**Catatan cakupan audit (bukan deviasi, keputusan sadar):** "Verifikasi Selesai" runbook entri 4 juga menyebut real-time API mendeteksi perubahan lewat refresh loop ~30-42 detik (M3.4) — bagian ini TIDAK diuji ulang independen di simulasi ini karena alias di-restore SEGERA setelah E1 (dalam hitungan detik, sesuai catatan risiko rancangan di atas) untuk meminimalkan window champion menunjuk ke versi 5 di produksi. Klaim timing ~30-42 detik bersandar pada verifikasi M3.4 sebelumnya (`milestones/3.4-.../report.md`), bukan diverifikasi ulang di sini — trade-off sadar antara kelengkapan audit vs meminimalkan risiko operasional pada milestone penutup ini.
+
+**Kesimpulan:** 4/4 butir ekspektasi terukur MATCH sempurna, nol deviasi, nol perbaikan runbook diperlukan untuk entri ini. Simulasi 2 SELESAI — alias `champion` dikonfirmasi kembali ke versi 1 (state produksi tidak berubah permanen).
