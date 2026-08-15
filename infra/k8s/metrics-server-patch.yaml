@@ -1,0 +1,22 @@
+# Milestone 3.11 -- patch metrics-server untuk Docker Desktop Kubernetes.
+#
+# Manifest upstream resmi (components.yaml) diapply apa adanya via:
+#   kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+#
+# TAPI langsung gagal scrape dengan error:
+#   tls: failed to verify certificate: x509: cannot validate certificate for
+#   192.168.65.3 because it doesn't contain any IP SANs
+#
+# Ini isu kompatibilitas DIKENAL LUAS untuk Docker Desktop Kubernetes --
+# sertifikat kubelet self-signed bawaan tidak menyertakan IP node sebagai
+# Subject Alternative Name, jadi verifikasi TLS metrics-server ke kubelet
+# selalu gagal. Fix standar: tambah flag --kubelet-insecure-tls (skip
+# verifikasi sertifikat kubelet, HANYA aman untuk cluster lokal/dev seperti
+# ini -- bukan direkomendasikan untuk cluster produksi multi-tenant).
+#
+# Diterapkan via:
+#   kubectl patch deployment metrics-server -n kube-system --type=json \
+#     -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+#
+# File ini disimpan untuk reproducibility (dokumentasi command persis yang
+# dipakai) -- lihat milestones/3.11-.../decisions.md dan logs.md Checkpoint 3.
