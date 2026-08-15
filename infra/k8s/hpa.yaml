@@ -1,0 +1,44 @@
+# Milestone 3.11 -- HorizontalPodAutoscaler dasar untuk churn-api.
+#
+# AMBANG BATAS ILUSTRATIF -- cluster Docker Desktop Kubernetes LOKAL
+# single-node (KD-2, docs/keterbatasan-diterima.md), menambah replica di
+# sini TIDAK menambah kapasitas riil di luar satu mesin fisik yang sama.
+# Dibangun atas permintaan EKSPLISIT user untuk kelengkapan
+# portofolio/demonstrasi kapabilitas -- BUKAN rekomendasi awal saya
+# (saya merekomendasikan skip/tunda, konsisten pola KT-5/7/8/9/11/12).
+# Bukan hasil kalibrasi trafik produksi nyata -- lihat
+# milestones/3.11-rollback-deployment-resource-sizing/decisions.md
+# Keputusan #2 dan docs/keputusan-tertunda.md KT-12.
+#
+# targetCPUUtilization 70% -- PENTING: metrik "Utilization" HPA dihitung
+# relatif terhadap requests.cpu (200m), BUKAN limits.cpu (1500m) --
+# target 70% = ~140m. Diverifikasi empiris (Checkpoint 6): pod idle
+# segar terbaca 35% (~70m, konsisten idle steady-state CP4 ~89-321m).
+# Uji beban CP4 (concurrency=1 saja SUDAH rata-rata 888m/puncak 1122m
+# akibat karakteristik single-worker API, KD-3) berarti 140m terlampaui
+# ~6x lipat bahkan pada beban RINGAN -- ambang ini realistis terpicu
+# tanpa beban ekstrem, dan cukup jauh di atas idle segar (35%) untuk
+# tidak flapping terus-menerus saat benar-benar idle.
+#
+# minReplicas:1/maxReplicas:3 -- node docker-desktop punya ~4 core total
+# (kubectl top nodes M3.11 Checkpoint 3: 4068m), muat nyaman untuk 2-3
+# pod @ limits.cpu 1500m tanpa over-commit ekstrem.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: churn-api
+  namespace: churn-prediction
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: churn-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
