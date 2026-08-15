@@ -163,3 +163,23 @@ User diberi 2 opsi: (a) Docker Desktop Kubernetes lokal -- gratis, zero setup ba
 **Pemicu peninjauan:** Web chat user selesai dibangun dan punya endpoint/API yang bisa menerima webhook — saat itu, cukup ganti nilai `DRIFT_NOTIFICATION_WEBHOOK_URL` di Secret `monitoring-secrets` (namespace `monitoring`) ke URL endpoint web chat yang sesungguhnya, verifikasi ulang KK1 M3.7 terhadap tujuan baru.
 
 **Referensi:** `milestones/3.7-jalur-notifikasi-retraining/decisions.md`, `infra/k8s/monitoring/grafana-alerting-configmap.yaml`.
+
+---
+
+## KT-11 — Retensi tabel `monitoring.metrics_snapshot`
+
+**Muncul saat:** Milestone 3.9, sebelum plan ditulis (`AskUserQuestion` ke user, sebagai salah satu dari 4 pertanyaan sebelum implementasi).
+
+**Konteks:** Milestone 3.9 membangun tabel generik `monitoring.metrics_snapshot` yang menampung snapshot periodik (tiap 1 menit) SELURUH metrik dari 3 pilar observability — TERMASUK 29 fitur input + 1 output prediksi drift (M3.6), yang masing-masing dipantau lewat 3 metrik (`drift_psi`/`drift_pvalue`/`drift_verdict`). Berbeda dari Prometheus (retensi otomatis 15 hari, M3.5), PostgreSQL TIDAK punya mekanisme expire bawaan — tabel ini akan tumbuh TANPA BATAS kalau tidak ada job pruning.
+
+**Volume nyata terukur (bukan estimasi) saat milestone ini ditutup:** 2.595 baris dalam ~25 siklus (~25 menit) berjalan, 472 kB ukuran tabel — ekstrapolasi **~150.000 baris/hari (~27 MB/hari, ~820 MB/bulan, ~9,8 GB/tahun)**. Dominasi kontributor: drift (3 metrik x 30 seri = 750 baris per ~25 siklus, ~72% dari total baris) — konsekuensi langsung keputusan skema generik M3.9 (Keputusan #1 `milestones/3.9-.../decisions.md`) yang menyalin ulang data drift yang sebenarnya SUDAH ada di `drift.drift_check_results` (M3.6) ke tabel generik ini.
+
+**Keputusan untuk sekarang:** BELUM membangun mekanisme retensi/pruning — tabel dibiarkan tumbuh tanpa batas untuk saat ini.
+
+**Kenapa belum diputuskan sekarang:** Skala proyek portofolio, ~9,8 GB/tahun BELUM jadi masalah storage nyata dalam waktu dekat (jauh di bawah kuota tier gratis Supabase yang lazim, dan indeks `(metric_name, computed_at DESC)` menjaga query "N baris terbaru" tetap cepat terlepas ukuran tabel total). Membangun mekanisme pruning sekarang (pilih ambang batas retensi, jadwal job DELETE) berarti menebak kebutuhan tanpa pengalaman operasional nyata — pola sama KT-5/6/8/9/10 (tunda sampai ada kebutuhan/volume nyata mendesak).
+
+**Pemicu peninjauan:** (a) Ukuran tabel mulai mendekati kuota storage Supabase yang dipakai proyek ini, ATAU (b) query dashboard/API publik (M3.10) mulai terasa lambat akibat volume baris, ATAU (c) user secara eksplisit ingin evaluasi ulang meski belum ada pemicu (a)/(b) — mis. saat mendesain API publik M3.10 dan ingin tahu proyeksi biaya/storage jangka panjang.
+
+**Opsi yang sudah terlihat (bukan keputusan final, referensi untuk peninjauan nanti):** (i) DELETE baris lebih tua dari N hari via job periodik (mis. extend `metrics_aggregator.py` atau job terpisah); (ii) partisi tabel per bulan (`PARTITION BY RANGE (computed_at)`) + drop partisi lama, lebih efisien dari DELETE baris-per-baris di tabel besar; (iii) downsampling (agregat harian/mingguan untuk data lama, baris mentah hanya untuk N hari terakhir) — mirip pola retensi Prometheus sendiri tapi diterapkan manual di Postgres.
+
+**Referensi:** `milestones/3.9-penyimpanan-data-monitoring-postgresql/decisions.md` Keputusan #1 dan #3.
