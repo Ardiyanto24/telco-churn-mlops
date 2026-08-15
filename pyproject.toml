@@ -82,6 +82,12 @@ dependencies = [
     # Prometheus untuk KK1 M3.5 (p95 latency, error rate). Lihat
     # milestones/3.5-monitoring-infra-pipeline-health/decisions.md Keputusan #2.
     "prometheus-fastapi-instrumentator==8.1.0",
+    # requests: Milestone 3.9 (orchestration/monitoring/metrics_aggregator.py)
+    # -- query HTTP API Prometheus (/api/v1/query) sebagai client, arah
+    # kebalikan dari exporter existing (M3.5/M3.6) yang DISCRAPE Prometheus,
+    # bukan MEMBACA darinya. Sudah terpasang transitif sebelum ini (versi
+    # yang resolve dipin eksplisit di sini, konsisten prinsip M1.2).
+    "requests==2.34.2",
 ]
 
 [project.optional-dependencies]
