@@ -183,3 +183,19 @@ User diberi 2 opsi: (a) Docker Desktop Kubernetes lokal -- gratis, zero setup ba
 **Opsi yang sudah terlihat (bukan keputusan final, referensi untuk peninjauan nanti):** (i) DELETE baris lebih tua dari N hari via job periodik (mis. extend `metrics_aggregator.py` atau job terpisah); (ii) partisi tabel per bulan (`PARTITION BY RANGE (computed_at)`) + drop partisi lama, lebih efisien dari DELETE baris-per-baris di tabel besar; (iii) downsampling (agregat harian/mingguan untuk data lama, baris mentah hanya untuk N hari terakhir) — mirip pola retensi Prometheus sendiri tapi diterapkan manual di Postgres.
 
 **Referensi:** `milestones/3.9-penyimpanan-data-monitoring-postgresql/decisions.md` Keputusan #1 dan #3.
+
+---
+
+## KT-12 — Kalibrasi resource sizing dan threshold HPA `churn-api` berbasis beban terkontrol, bukan trafik produksi nyata
+
+**Muncul saat:** Milestone 3.11, sebelum plan ditulis (`AskUserQuestion` ke user, setelah konflik dokumen-vs-implementasi ditemukan — teks sumber M3.11 mengasumsikan M3.5 sudah punya data historis CPU/memory pod, padahal tidak pernah ada).
+
+**Konteks:** M3.11 membangun `metrics-server` + uji beban terkontrol (`scripts/k8s_resource_load_test.py`, 1/10/50/100 request `/predict` paralel) sebagai dasar re-validasi `resources.requests`/`limits` (M3.3, RE-AFFIRMED tanpa perubahan numerik) dan threshold HPA baru (`infra/k8s/hpa.yaml`, `averageUtilization:70`). Kedua nilai divalidasi dengan bukti metrik native Kubernetes (`kubectl top`) — TAPI trafik yang diuji tetap sintetis/terkontrol (generator Python lokal), BUKAN trafik produksi organik, karena real-time API (M3.2-3.4) belum punya pemanggil eksternal nyata (konsisten KD-2/KT-8/KT-9).
+
+**Keputusan untuk sekarang:** Nilai resource (200m/400Mi requests, 1500m/768Mi limits) dan threshold HPA (70% dari `requests.cpu`, `minReplicas:1`/`maxReplicas:3`) dipakai apa adanya, didokumentasikan eksplisit sebagai hasil kalibrasi beban terkontrol — bukan SLA/pola trafik produksi nyata.
+
+**Kenapa belum diputuskan sekarang:** Konsisten pola established SANGAT kuat di proyek ini (preseden KT-5, KT-7, KT-8, KT-9, KT-11) — setiap kali "keputusan berbasis trafik/beban nyata" diminta tapi trafik nyata belum ada, dicatat sebagai keputusan tertunda alih-alih menebak ambang batas permanen berdasar data sintetis semata.
+
+**Pemicu peninjauan:** Real-time API punya pemanggil eksternal nyata (bukan portofolio/demo/verifikasi manual semata) — trigger yang SAMA dengan KT-5/7/8/9, konsisten satu payung kondisi "real-time API mulai dipakai sungguhan". Saat itu, kalibrasi ulang resource request/limit DAN threshold HPA dengan pola trafik produksi asli (bukan generator sintetis `k8s_resource_load_test.py`).
+
+**Referensi:** `milestones/3.11-rollback-deployment-resource-sizing/decisions.md` Keputusan #1, #2, #7 dan `logs.md` Checkpoint 4-6 (data mentah lengkap), `docs/keterbatasan-diterima.md` KD-3 (temuan terkait: karakteristik single-worker API yang jadi konteks penting kalibrasi ini).

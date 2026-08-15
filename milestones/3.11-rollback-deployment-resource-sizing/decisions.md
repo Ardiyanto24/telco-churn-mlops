@@ -94,8 +94,13 @@
 
 ## Nilai Konkret Hasil Implementasi
 
-`[DIISI CHECKPOINT 7]` — akan berisi:
-- Nilai final `resources.requests`/`resources.limits` (Checkpoint 5) beserta angka `kubectl top` idle/puncak yang jadi dasarnya.
-- Threshold HPA final (`averageUtilization`, `minReplicas`/`maxReplicas`) beserta rasionalnya terhadap limit CPU baru.
-- Detail patch `metrics-server` (Checkpoint 3) kalau isu TLS Docker Desktop K8s muncul.
-- Hasil observasi scale-up/scale-down HPA (Checkpoint 6) — timestamp dan angka nyata, atau diagnosis kalau tidak teramati.
+**Resource request/limit (Checkpoint 4-5):** RE-AFFIRMED tanpa perubahan numerik — `requests: {cpu:200m, memory:400Mi}`, `limits: {cpu:1500m, memory:768Mi}` (sama persis M3.3). Divalidasi metrik native K8s (`kubectl top`, bukan proxy `docker stats`): idle steady-state 89-321m CPU / 340-341Mi memory; puncak tertinggi di SELURUH 4 level uji beban (1/10/50/100 konkurensi) = 1122m CPU / 462Mi memory. Requests punya margin ~1,3x di atas rata-rata idle, limits punya headroom ~34% (CPU) / ~66% (memory) di atas puncak tertinggi. Lihat `logs.md` Checkpoint 4-5 untuk tabel lengkap per level.
+
+**`metrics-server` (Checkpoint 3):** Isu TLS Docker Desktop K8s TERJADI seperti diprediksi (`x509: cannot validate certificate ... doesn't contain any IP SANs`) — diperbaiki `kubectl patch` `--kubelet-insecure-tls`, didokumentasikan `infra/k8s/metrics-server-patch.yaml`.
+
+**Threshold HPA final (Checkpoint 6):** `averageUtilization: 70` (dari `requests.cpu`, TERKOREKSI dari asumsi awal salah yang mengira dari `limits.cpu` — lihat `logs.md` Checkpoint 6), `minReplicas:1`/`maxReplicas:3`. `maxReplicas:3` DIPERTAHANKAN (bukan dinaikkan) meski node ternyata berkapasitas ~12 core (bukan ~4 core seperti salah baca awal) — uji coba nyata membuktikan raw CPU node bukan pembatas sebenarnya (root cause instability adalah KD-3, karakteristik single-worker API, bukan kapasitas node).
+
+**Scale-up/scale-down HPA (Checkpoint 6) — keduanya teramati NYATA:**
+- Scale-up 1→3 replica terpicu 05:25:50 (CPU 254%/70%), 2 pod baru fully Ready 05:30:28.
+- Scale-down 3→2 pada 05:38:55, 2→1 pada 05:45:52 (window stabilisasi default ~5 menit per langkah, sesuai perilaku `ScaleDownStabilized` yang dikonfirmasi via `kubectl describe hpa`).
+- **Temuan tak terduga bernilai tinggi**: scale-up ke 3 replica pada cluster single-node yang kebetulan sudah terbebani (kombinasi KD-3 + insiden trafik residual `poll_predict.py` yang tidak sengaja masih berjalan sejak Checkpoint 2, lihat `logs.md`) sempat membuat SEMUA 3 pod `0/1 Not Ready` bersamaan selama ~2 menit sebelum pulih sendiri — bukti konkret dan tak terbantahkan bahwa HPA di cluster lokal ini benar-benar bersifat ilustratif, bukan jaminan elastisitas produksi, konsisten framing Keputusan #2 di atas.
