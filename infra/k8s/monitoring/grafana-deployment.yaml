@@ -1,6 +1,9 @@
 # Milestone 3.5 -- Deployment Grafana. Admin password dari Secret
 # `monitoring-secrets` (key GF_SECURITY_ADMIN_PASSWORD, ditambahkan manual
 # lewat kubectl, TIDAK dicommit -- pola sama churn-api-secrets M3.3).
+# Milestone 3.7 -- volume `alerting` (provisioning contact point+rule+policy
+# notifikasi drift). envFrom Secret sudah ter-mount sejak awal, dipakai
+# provisioning alerting via $__env{} tanpa perlu env var eksplisit baru.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,6 +36,8 @@ spec:
               mountPath: /etc/grafana/provisioning/dashboards
             - name: dashboard-json
               mountPath: /var/lib/grafana/dashboards
+            - name: alerting
+              mountPath: /etc/grafana/provisioning/alerting
           resources:
             requests:
               cpu: "100m"
@@ -50,3 +55,6 @@ spec:
         - name: dashboard-json
           configMap:
             name: grafana-dashboard-churn-monitoring
+        - name: alerting
+          configMap:
+            name: grafana-alerting

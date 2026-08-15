@@ -1,0 +1,95 @@
+# Milestone 3.7 -- provisioning Grafana Alerting deklaratif (ConfigMap, bukan
+# diklik manual di UI, konsisten pola datasource/dashboard M3.5) untuk jalur
+# notifikasi retraining (Bagian 5.3 dokumen arsitektur, forced): notifikasi
+# saat drift (M3.6, feature_drift_verdict dari drift_exporter) melewati
+# ambang batas.
+#
+# Grafana SENDIRI jadi "API pengirim notifikasi" -- evaluasi kondisi, kelola
+# state firing/resolved (anti-spam via repeat_interval, TANPA kode custom),
+# POST payload JSON generik ke contact point webhook. URL webhook TIDAK
+# hardcode di file ini -- $__env{DRIFT_NOTIFICATION_WEBHOOK_URL} dibaca dari
+# Secret monitoring-secrets (envFrom sudah ter-mount sejak M3.5) saat
+# runtime. Lihat milestones/3.7-jalur-notifikasi-retraining/decisions.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting
+  namespace: monitoring
+data:
+  contactpoints.yaml: |
+    apiVersion: 1
+    contactPoints:
+      - orgId: 1
+        name: drift-webhook
+        receivers:
+          - uid: drift-webhook-receiver
+            type: webhook
+            settings:
+              url: $__env{DRIFT_NOTIFICATION_WEBHOOK_URL}
+              httpMethod: POST
+  rules.yaml: |
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: drift-retraining
+        folder: drift-retraining
+        interval: 1m
+        rules:
+          - uid: drift-threshold-exceeded
+            title: DriftThresholdExceeded
+            # condition WAJIB expression Threshold (refId B), BUKAN langsung
+            # query mentah (refId A) -- Grafana alerting anggap NILAI MENTAH
+            # 0 = "tidak alerting" (konvensi nonzero=alerting) kalau condition
+            # menunjuk langsung ke query tanpa Threshold. Encoding
+            # feature_drift_verdict (2=pass/1=flag/0=stop, drift/metrics.py
+            # verdict_to_value()) PERSIS bentrok konvensi itu -- ditemukan
+            # empiris saat verifikasi (rule ter-provisioning tapi TIDAK
+            # pernah fire meski Prometheus punya data verdict=0 nyata). Lihat
+            # milestones/3.7-jalur-notifikasi-retraining/decisions.md.
+            condition: B
+            data:
+              - refId: A
+                datasourceUid: prometheus
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                model:
+                  expr: feature_drift_verdict
+                  instant: true
+                  refId: A
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  type: threshold
+                  expression: A
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params: [1]
+                  refId: B
+            for: 0s
+            noDataState: OK
+            execErrState: Error
+            labels:
+              alert_category: drift_retraining
+            annotations:
+              summary: "Drift signifikan terdeteksi pada fitur {{ $labels.feature_name }} (verdict: stop)"
+              description: >-
+                Fitur {{ $labels.feature_name }} menunjukkan pergeseran distribusi signifikan
+                dibanding baseline data training (594.194 baris telco_customers_source) vs
+                data produksi terkini (telco_customers_synthetic). Verdict gabungan PSI+uji
+                statistik: stop. Lihat detail PSI/p-value lengkap per fitur di dashboard:
+                http://localhost:3000/d/churn-monitoring-m35 (panel "PSI + p-value + Verdict
+                per Fitur"). Retraining tetap keputusan manual tim Data Scientist -- notifikasi
+                ini murni sinyal, bukan trigger otomatis.
+  policies.yaml: |
+    apiVersion: 1
+    policies:
+      - orgId: 1
+        receiver: drift-webhook
+        group_by: ["alertname"]
+        routes:
+          - receiver: drift-webhook
+            object_matchers:
+              - ["alert_category", "=", "drift_retraining"]
+            repeat_interval: 4h
