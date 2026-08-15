@@ -208,7 +208,7 @@ data:
           "id": 11,
           "type": "stat",
           "title": "Jumlah Fitur Verdict STOP",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 5, "w": 6, "x": 0, "y": 26 },
           "fieldConfig": {
             "defaults": {
@@ -223,14 +223,17 @@ data:
             "overrides": []
           },
           "targets": [
-            { "expr": "count(feature_drift_verdict == 0) OR on() vector(0)" }
+            {
+              "format": "table",
+              "rawSql": "SELECT count(*) AS value FROM (SELECT DISTINCT ON (labels->>'feature_name') value FROM monitoring.metrics_snapshot WHERE metric_name = 'drift_verdict' ORDER BY labels->>'feature_name', computed_at DESC) latest WHERE value = 0"
+            }
           ]
         },
         {
           "id": 12,
           "type": "stat",
           "title": "Jumlah Fitur Verdict FLAG",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 5, "w": 6, "x": 6, "y": 26 },
           "fieldConfig": {
             "defaults": {
@@ -245,14 +248,17 @@ data:
             "overrides": []
           },
           "targets": [
-            { "expr": "count(feature_drift_verdict == 1) OR on() vector(0)" }
+            {
+              "format": "table",
+              "rawSql": "SELECT count(*) AS value FROM (SELECT DISTINCT ON (labels->>'feature_name') value FROM monitoring.metrics_snapshot WHERE metric_name = 'drift_verdict' ORDER BY labels->>'feature_name', computed_at DESC) latest WHERE value = 1"
+            }
           ]
         },
         {
           "id": 13,
           "type": "table",
           "title": "PSI (Tier 1) + p-value (Tier 2) + Verdict per Fitur (baseline data training vs telco_customers_synthetic)",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "postgres", "uid": "postgres-monitoring" },
           "gridPos": { "h": 10, "w": 24, "x": 0, "y": 31 },
           "fieldConfig": {
             "defaults": {
@@ -265,9 +271,10 @@ data:
             "overrides": []
           },
           "targets": [
-            { "expr": "feature_drift_psi", "format": "table", "instant": true, "legendFormat": "psi" },
-            { "expr": "feature_drift_pvalue", "format": "table", "instant": true, "legendFormat": "p_value" },
-            { "expr": "feature_drift_verdict", "format": "table", "instant": true, "legendFormat": "verdict" }
+            {
+              "format": "table",
+              "rawSql": "SELECT psi.feature_name, psi.value AS psi, pval.value AS p_value, verdict.value AS verdict FROM (SELECT DISTINCT ON (labels->>'feature_name') labels->>'feature_name' AS feature_name, value FROM monitoring.metrics_snapshot WHERE metric_name = 'drift_psi' ORDER BY labels->>'feature_name', computed_at DESC) psi JOIN (SELECT DISTINCT ON (labels->>'feature_name') labels->>'feature_name' AS feature_name, value FROM monitoring.metrics_snapshot WHERE metric_name = 'drift_pvalue' ORDER BY labels->>'feature_name', computed_at DESC) pval ON pval.feature_name = psi.feature_name JOIN (SELECT DISTINCT ON (labels->>'feature_name') labels->>'feature_name' AS feature_name, value FROM monitoring.metrics_snapshot WHERE metric_name = 'drift_verdict' ORDER BY labels->>'feature_name', computed_at DESC) verdict ON verdict.feature_name = psi.feature_name ORDER BY psi.feature_name"
+            }
           ]
         }
       ]
