@@ -21,6 +21,19 @@ metadata:
     app: churn-api
 spec:
   replicas: 1
+  # strategy/revisionHistoryLimit -- dibuat EKSPLISIT Milestone 3.11 (nilainya
+  # SAMA PERSIS dengan default implisit K8s yang sudah berlaku sejak M3.3,
+  # murni supaya kapabilitas rollback terdokumentasi sadar, bukan kebetulan
+  # default -- lihat milestones/3.11-.../decisions.md Keputusan #3).
+  # maxUnavailable:0 berarti pod lama TIDAK PERNAH diturunkan sampai pod baru
+  # Ready -- rollout yang gagal health check macet aman (zero-downtime
+  # inheren), kubectl rollout undo dipakai membersihkan status tidak sehat.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: churn-api
@@ -78,7 +91,9 @@ spec:
           # scheduling), limits ~2x margin di atas puncak yang teramati
           # (memori) / headroom ~1.5x di atas puncak CPU (hindari throttling
           # saat burst sedikit lebih besar) -- tetap "estimasi awal" (KK3
-          # sumber), disempurnakan M3.7 berdasar beban produksi nyata.
+          # sumber), disempurnakan Milestone 3.11 berdasar metrik native K8s
+          # (kubectl top, bukan lagi proxy docker stats) -- lihat
+          # milestones/3.11-.../decisions.md.
           resources:
             requests:
               cpu: "200m"
