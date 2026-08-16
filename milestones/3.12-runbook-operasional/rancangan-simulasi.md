@@ -105,3 +105,28 @@
 2. Poin "healthz 200, readyz non-200: model/registry tidak reachable" diperjelas: ini pola untuk host VALID tapi unreachable (M3.2). Untuk host yang GAGAL RESOLVE DNS sama sekali, healthz JUGA bisa gagal (port belum terbuka) -- kedua pola dibedakan eksplisit.
 
 **Kesimpulan:** 2/5 MATCH penuh, 1 MATCH sebagian, 2 DEVIASI signifikan ditemukan dan LANGSUNG diperbaiki di runbook -- justru pembuktian paling kuat kenapa audit pra-registrasi (rancangan dulu, baru eksekusi) berguna: rancangan yang ditulis dari asumsi (byproduct generalisasi berlebih dari precedent M3.2) TERBUKTI tidak akurat untuk kasus DNS-gagal-total, dan gap followability runbook (Service vs pod spesifik) tidak akan ketemu tanpa benar-benar mengikuti langkah tertulis secara harfiah.
+
+---
+
+## Simulasi 4 — Drift Terdeteksi
+
+**Ditulis:** sebelum Task 23 (eksekusi) dijalankan.
+
+**Kondisi awal (dicek read-only sebelum rancangan ini dikunci):** Cluster stabil 1 pod `1/1 Ready`, HPA `cpu: 25%/70%`, `REPLICAS: 1` (kondisi bersih, tidak ada insiden berjalan dari Checkpoint 5).
+
+**Teknik:** `python scripts/compute_drift.py --mode current --override-current <path-json>` — JSON override berisi `{"tenure": [nilai-nilai ekstrem]}` (fitur numerik, pola M3.6/3.7), memaksa PSI fitur `tenure` melewati ambang stop (≥0.25) dibanding baseline.
+
+**Ekspektasi hasil terukur (DIKUNCI sebelum eksekusi):**
+
+| # | Ekspektasi | Cara verifikasi |
+|---|---|---|
+| E1 | Fitur `tenure` verdict berubah jadi `stop` (PSI ≥0.25 dan/atau p-value <0.01) | Baca output skrip / query `drift.drift_check_results` |
+| E2 | Baris baru tercatat `drift.drift_check_results` untuk `feature_name='tenure'` | Query langsung |
+| E3 | Alert `DriftThresholdExceeded` Firing dalam siklus evaluasi Grafana (~1 menit interval, pola M3.12 Checkpoint 3 -- alert QualityGateStop firing ~48 detik) | Grafana Alertmanager API |
+| E4 | Webhook `drift-webhook-receiver` (`https://webhook.site/43011751-671e-43c9-9d63-2f70e245a94e`) menerima payload sesuai skema M3.7 | Cek riwayat request webhook.site |
+| E5 | Setelah override dihapus/dijalankan ulang mode normal (tanpa `--override-current`), verdict `tenure` kembali `pass`/`flag`, alert berubah status Resolved | Jalankan `compute_drift.py --mode current` tanpa override, cek ulang |
+| E6 | Entri runbook "1. Drift Terdeteksi" bisa diikuti tanpa perlu baca `notebook-audit.md`/`decisions.md` M3.6 untuk paham artinya | Diikuti manual Task 24, catat kalau ada langkah ambigu/kurang -- **PERHATIAN KHUSUS** (pelajaran Checkpoint 5): validasi juga apakah instruksi runbook akurat untuk KEDUA jalur verifikasi (Postgres langsung DAN webhook), jangan asumsikan generalisasi dari milestone lain otomatis akurat |
+
+**Catatan risiko:** `compute_drift.py --mode current` menulis PREDIKSI BARU ke `drift.drift_check_results` (bukan `predictions.batch_predictions` -- tidak menyentuh data prediksi produksi), current-window dihitung dari `telco_customers_synthetic` REAL (bukan data buatan seluruhnya, hanya SATU fitur di-override) -- pola SAMA PERSIS M3.6/3.7, sudah terbukti aman berulang kali sebelum ini.
+
+**Audit (diisi SETELAH Task 24 selesai):** `[DIISI SETELAH EKSEKUSI]`
