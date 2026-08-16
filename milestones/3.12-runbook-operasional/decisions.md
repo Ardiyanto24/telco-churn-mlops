@@ -72,4 +72,15 @@
 
 ## Hasil Audit 4 Simulasi
 
-`[DIISI CHECKPOINT 7]` — akan berisi ringkasan MATCH/DEVIASI tiap simulasi (rujuk `rancangan-simulasi.md` untuk detail lengkap per butir ekspektasi) dan daftar perbaikan runbook yang ditemukan selama uji coba (kalau ada).
+Detail lengkap per butir ekspektasi ada di `rancangan-simulasi.md`. Ringkasan:
+
+| Simulasi | Hasil Audit | Deviasi Ditemukan | Perbaikan Runbook |
+|---|---|---|---|
+| 1. Gerbang Kualitas Data Stop | 4/5 MATCH, 1 MATCH dengan deviasi kecil | Runbook tidak menyebut env var koneksi | Tambah `QUALITY_GATE_DB_URL` di entri 2b |
+| 2. Rollback Model | 4/4 MATCH sempurna | Nol deviasi | Nol perbaikan diperlukan |
+| 3. Real-Time API Down/Lambat | 2/5 MATCH penuh, 1 MATCH sebagian, 2 deviasi signifikan | (a) `healthz` JUGA gagal untuk host gagal-resolve-DNS-total (beda dari pola M3.2 unreachable-tapi-valid); (b) `curl` ke Service tidak representatif untuk diagnosis pod spesifik saat multi-replica | Tambah pembedaan 2 pola kegagalan config + instruksi `kubectl port-forward` untuk diagnosis pod spesifik |
+| 4. Drift Terdeteksi | 5/6 MATCH (1 dengan insiden metodologi diperbaiki di tengah jalan, 1 dengan temuan tambahan), 1 deviasi kecil | (a) fitur override awal (`tenure`) ternyata SUDAH stop kronis sejak sebelum simulasi — diganti `tc_residual` di tengah eksekusi untuk transisi sebab-akibat bersih; (b) payload webhook berisi array `alerts[]` multi-fitur (grouped); (c) env var koneksi tidak disebutkan | Tambah `DRIFT_READER_DB_URL` + peringatan payload multi-fitur di entri 1 |
+
+**Insiden operasional tambahan (di luar runbook, dicatat transparan):** HPA (M3.11, masih aktif) sempat scale-up ke 3 replica akibat noise CPU tidak terkait simulasi manapun di M3.12 — pada Simulasi 3, ini menyebabkan kontensi memori node (pod baru `Pending`, `Insufficient memory`) yang diatasi dengan `kubectl scale --replicas=1` sementara. Tidak mengubah kesimpulan audit KK2 (root cause tetap teridentifikasi dan diverifikasi benar), tapi dicatat sebagai kondisi lingkungan nyata yang harus ditangani di tengah eksekusi — konsisten pola "tidak menyembunyikan insiden" seluruh proyek ini.
+
+**Kesimpulan keseluruhan KK2:** Keempat simulasi BERHASIL — bukan karena semuanya berjalan mulus tanpa temuan (2 dari 4 justru menemukan gap signifikan), tapi karena metodologi rancangan→eksekusi→ikuti-runbook→audit BEKERJA SEPERTI DIRANCANG: ekspektasi yang dikunci sebelum eksekusi memberi dasar objektif untuk mendeteksi deviasi (termasuk deviasi dari asumsi SAYA sendiri saat menulis rancangan, seperti kasus `tenure` yang ternyata sudah stop kronis) — bukan rasionalisasi hasil setelah fakta. 6 dari total ~10 gap/temuan yang terungkap LANGSUNG diperbaiki di runbook operasional, bukan cuma dicatat sebagai catatan kaki.
