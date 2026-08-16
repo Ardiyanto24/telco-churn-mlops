@@ -65,3 +65,27 @@
 **Catatan cakupan audit (bukan deviasi, keputusan sadar):** "Verifikasi Selesai" runbook entri 4 juga menyebut real-time API mendeteksi perubahan lewat refresh loop ~30-42 detik (M3.4) — bagian ini TIDAK diuji ulang independen di simulasi ini karena alias di-restore SEGERA setelah E1 (dalam hitungan detik, sesuai catatan risiko rancangan di atas) untuk meminimalkan window champion menunjuk ke versi 5 di produksi. Klaim timing ~30-42 detik bersandar pada verifikasi M3.4 sebelumnya (`milestones/3.4-.../report.md`), bukan diverifikasi ulang di sini — trade-off sadar antara kelengkapan audit vs meminimalkan risiko operasional pada milestone penutup ini.
 
 **Kesimpulan:** 4/4 butir ekspektasi terukur MATCH sempurna, nol deviasi, nol perbaikan runbook diperlukan untuk entri ini. Simulasi 2 SELESAI — alias `champion` dikonfirmasi kembali ke versi 1 (state produksi tidak berubah permanen).
+
+---
+
+## Simulasi 3 — Real-Time API Down/Lambat
+
+**Ditulis:** sebelum Task 20 (eksekusi) dijalankan.
+
+**Kondisi awal (dicek read-only sebelum rancangan ini dikunci):** `kubectl get pods -n churn-prediction` menunjukkan **3 pod** (1 lama `thvdt` AGE 93m, 2 baru `rzwrx`/`xjxfq` AGE 44s, keduanya `0/1 Not Ready`) — HPA (M3.11, masih aktif) baru scale-up ke `maxReplicas:3` akibat CPU util 266%/70%, kemungkinan noise lingkungan tidak terkait simulasi ini (konsisten karakteristik KD-3: CPU bursty meski beban ringan). `curl /healthz`+`/readyz` ke Service (load-balanced) tetap 200 (pod lama masih melayani). Kondisi multi-pod ini DITERIMA APA ADANYA untuk simulasi ini (bukan ditunda menunggu stabil 1 replica) — teknik (`kubectl set env` di level Deployment) mempengaruhi SEMUA pod via rolling update terlepas jumlah replica saat ini.
+
+**Teknik:** `kubectl set env deployment/churn-api -n churn-prediction MLFLOW_TRACKING_URI=<URI tidak valid>` (override sementara di level Deployment, pola sama M3.2/3.3/3.4/M3.11 CP2), amati `/healthz` vs `/readyz`, LALU `kubectl set env deployment/churn-api -n churn-prediction MLFLOW_TRACKING_URI-` (hapus override, kembali ke Secret asli `churn-api-secrets`).
+
+**Ekspektasi hasil terukur (DIKUNCI sebelum eksekusi):**
+
+| # | Ekspektasi | Cara verifikasi |
+|---|---|---|
+| E1 | Setelah override diterapkan, pod BARU (hasil rolling update) `/healthz` tetap 200 SELAMA `startupProbe` budget belum habis (proses hidup) | `kubectl get pods` + `curl` langsung ke pod baru (port-forward kalau perlu) |
+| E2 | `/readyz` pod baru mengembalikan non-200 (model/registry tidak reachable) | `curl` ke `/readyz` |
+| E3 | Log pod baru menunjukkan retry backoff MLflow (`psycopg2.OperationalError`/`SQLAlchemy engine could not be created`, pola M3.11 CP2) | `kubectl logs <pod-baru> -n churn-prediction` |
+| E4 | Setelah override dihapus (restore Secret asli), `/readyz` kembali 200 dalam waktu wajar (rolling update baru, bukan permanen) | `curl /readyz` berulang sampai 200 |
+| E5 | Entri runbook "3. Real-Time API Down/Lambat" bisa diikuti PERSIS untuk membedakan liveness vs readiness tanpa baca kode aplikasi | Diikuti manual Task 20, dicatat kalau ada langkah ambigu/kurang |
+
+**Catatan risiko:** Trafik Service TETAP dilayani pod LAMA yang sehat selama pod baru (dengan config rusak) belum Ready (`maxUnavailable:0`, M3.11 Keputusan #3) — downtime diperkirakan nol/minimal, pola sama M3.11 CP2. Restore dilakukan SEGERA setelah E1-E3 terverifikasi (tidak menunggu retry backoff habis total, yang bisa tak terbatas untuk host benar-benar invalid).
+
+**Audit (diisi SETELAH Task 20 selesai):** `[DIISI SETELAH EKSEKUSI]`
