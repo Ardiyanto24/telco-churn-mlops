@@ -36,8 +36,8 @@ Cari gejala yang paling mendekati apa yang teramati, lompat langsung ke section-
 **Gejala:** Notifikasi webhook masuk dari Grafana Alerting (alert `DriftThresholdExceeded`), ATAU panel drift di dashboard Grafana (`churn-monitoring-m35`) menunjukkan fitur berstatus "stop".
 
 **Diagnosis:**
-1. Buka payload webhook (kanal `drift-webhook-receiver`, M3.7) — cek field `alertname`, `labels.feature_name`, `status` (`firing`/`resolved`).
-2. Query langsung `drift.drift_check_results` (atau panel Grafana yang sama) untuk fitur yang disebut: `SELECT feature_name, psi, p_value, verdict, computed_at FROM drift.drift_check_results WHERE feature_name = '<nama_fitur>' ORDER BY computed_at DESC LIMIT 1;` — verdict `stop` berarti PSI ≥0.25 ATAU p-value <0.01 (dua tier, M3.6 Keputusan #1: keduanya dihitung sekaligus, saling melengkapi — cek KEDUA kolom, jangan cuma satu).
+1. Buka payload webhook (kanal `drift-webhook-receiver`, M3.7) — cek field `alertname`, `labels.feature_name`, `status` (`firing`/`resolved`). **PENTING**: payload berisi ARRAY `alerts[]`, bisa memuat BEBERAPA fitur sekaligus kalau lebih dari satu firing bersamaan (`group_by:["alertname"]`, M3.7/M3.8 — satu grup notifikasi untuk SEMUA fitur dengan alert yang sama, bukan satu payload per fitur) — scan SELURUH array untuk temukan fitur yang relevan, jangan asumsikan payload cuma tentang satu fitur (ditemukan M3.12 Checkpoint 6, uji coba 3 fitur firing bersamaan dalam 1 payload).
+2. Query langsung `drift.drift_check_results` (atau panel Grafana yang sama) untuk fitur yang disebut: `SELECT feature_name, psi, p_value, verdict, computed_at FROM drift.drift_check_results WHERE feature_name = '<nama_fitur>' ORDER BY computed_at DESC LIMIT 1;` — verdict `stop` berarti PSI ≥0.25 ATAU p-value <0.01 (dua tier, M3.6 Keputusan #1: keduanya dihitung sekaligus, saling melengkapi — cek KEDUA kolom, jangan cuma satu). Koneksi: env var `DRIFT_READER_DB_URL` (dari `.env` lokal, role least-privilege `drift_reader`, M3.6).
 3. Pastikan ini bukan cuma satu fitur "flag" (PSI 0.1-0.25, ambang lebih longgar) — alert Grafana HANYA menyala untuk verdict `stop`.
 
 **Langkah Respons:**
