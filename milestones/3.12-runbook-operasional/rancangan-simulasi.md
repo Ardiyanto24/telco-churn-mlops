@@ -129,4 +129,21 @@
 
 **Catatan risiko:** `compute_drift.py --mode current` menulis PREDIKSI BARU ke `drift.drift_check_results` (bukan `predictions.batch_predictions` -- tidak menyentuh data prediksi produksi), current-window dihitung dari `telco_customers_synthetic` REAL (bukan data buatan seluruhnya, hanya SATU fitur di-override) -- pola SAMA PERSIS M3.6/3.7, sudah terbukti aman berulang kali sebelum ini.
 
-**Audit (diisi SETELAH Task 24 selesai):** `[DIISI SETELAH EKSEKUSI]`
+**Audit (diisi SETELAH Task 24 selesai):**
+
+**Insiden metodologi ditemukan+diperbaiki DI TENGAH eksekusi (dicatat transparan):** Override PERTAMA memakai fitur `tenure` (sesuai rancangan awal) — TAPI setelah eksekusi ditemukan `tenure` SUDAH verdict `stop` terus-menerus sejak 2026-08-14 (drift produksi asli, p-value-driven, persis temuan M3.6 report). Alert `startsAt` (00:02:20Z) TERNYATA lebih awal dari `computed_at` override saya (00:11:48Z) — bukti bahwa alert BUKAN dipicu simulasi ini, cuma kebetulan tumpang tindih dengan alert yang SUDAH aktif. **Diperbaiki di tengah jalan**: dicari fitur yang verdict TERKINI-nya `pass` (query `DISTINCT ON (feature_name)` seluruh 30 fitur) — `tc_residual` dipilih (PSI 0.027, `pass`), override diulang dengan fitur ini, transisi `pass`→`stop` bersih terkonfirmasi (baris sebelumnya `pass` 00:11:48, baris override 00:15:58 `stop`) sebelum lanjut ke verifikasi lain.
+
+| # | Ekspektasi | Realisasi | Hasil |
+|---|---|---|---|
+| E1 | Fitur override verdict jadi `stop` | `tc_residual`: PSI 8.29, p-value ≈4.76e-62, verdict `stop` -- transisi bersih dari `pass` sebelumnya | **MATCH** (setelah ganti fitur, lihat insiden di atas) |
+| E2 | Baris baru `drift.drift_check_results` | Terkonfirmasi via query langsung | **MATCH** |
+| E3 | Alert `DriftThresholdExceeded` Firing dalam siklus wajar | `startsAt: 2026-08-16T00:17:20Z` -- 1 menit 22 detik sejak `computed_at` (00:15:58Z), status `active` | **MATCH** |
+| E4 | Webhook menerima payload sesuai skema M3.7 | Payload diterima 00:19:18Z (1m58s sejak alert mulai) -- **TEMUAN TAMBAHAN**: payload BUKAN 1 alert per fitur, tapi array `alerts[]` berisi SEMUA fitur yang firing BERSAMAAN dalam 1 grup (`group_by:["alertname"]`, M3.7/M3.8) -- request ini berisi 3 entri (`service_count`, `tc_residual`, `tenure`), operator HARUS mem-filter/scan array untuk temukan fitur spesifik yang relevan, bukan asumsi payload = 1 fitur | **MATCH DENGAN TEMUAN TAMBAHAN — RUNBOOK DIPERBAIKI** |
+| E5 | Setelah restore, verdict `pass`, alert Resolved | `compute_drift.py --mode current` (tanpa override) -> verdict `pass` terkonfirmasi; alert TIDAK LAGI muncul di daftar aktif Grafana Alertmanager API (resolved) -- notifikasi webhook "resolved" spesifik untuk `tc_residual` TIDAK tertangkap dalam window pengamatan (~2 menit), kemungkinan masih dalam antrian/lag serupa firing, tapi status Alertmanager sendiri (sumber otoritatif) sudah cukup sebagai bukti | **MATCH** (via Alertmanager API, webhook resolved belum tertangkap independen) |
+| E6 | Entri runbook "1" bisa diikuti tanpa baca dokumen M3.6 lain | Diagnosis langkah 1-2 diikuti APA ADANYA, query SQL berhasil first-try. **DEVIASI KECIL** (pola SAMA Checkpoint 3): entri tidak menyebut env var koneksi (`DRIFT_READER_DB_URL`). **DEVIASI TAMBAHAN**: entri tidak memperingatkan soal payload multi-fitur (lihat E4) | **DEVIASI KECIL — DIPERBAIKI** |
+
+**Perbaikan runbook yang dilakukan:**
+1. Diagnosis langkah 2 ditambah env var `DRIFT_READER_DB_URL`.
+2. Diagnosis langkah 1 ditambah catatan: payload webhook berisi ARRAY `alerts[]`, bisa memuat BEBERAPA fitur sekaligus (grouped by alertname) -- scan seluruh array, jangan asumsikan 1 payload = 1 fitur.
+
+**Kesimpulan:** 5/6 MATCH penuh (1 dengan catatan insiden metodologi awal yang diperbaiki di tengah jalan, 1 dengan temuan tambahan berharga soal grouping), 1 deviasi kecil diperbaiki. **Pelajaran terpenting simulasi ini**: rancangan yang ditulis SEBELUM eksekusi TIDAK mengecek state produksi existing (`tenure` sudah stop kronis) -- untungnya audit MENANGKAP ini (bukan lolos begitu saja), dan koreksi di tengah jalan (ganti fitur ke `tc_residual`) justru menghasilkan bukti sebab-akibat yang JAUH lebih bersih daripada kalau dipaksakan lanjut dengan `tenure`. Ini membuktikan nilai nyata metodologi rancangan->eksekusi->audit yang diminta user di awal M3.12.
